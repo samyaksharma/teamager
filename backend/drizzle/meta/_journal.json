@@ -1,0 +1,27 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1748168953872,
+      "tag": "0000_smart_exodus",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1748184772168,
+      "tag": "0001_puzzling_anita_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1748578067834,
+      "tag": "0002_far_silver_sable",
+      "breakpoints": true
+    }
+  ]
+}
