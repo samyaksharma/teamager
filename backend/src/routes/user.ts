@@ -255,7 +255,7 @@ router.post('/refresh-token', async (req, res) => {
     }
     
     // Check if token is expired
-    if (tokenRecord[0].expiresAt < new Date()) {
+    if (tokenRecord[0].expiresAt && tokenRecord[0].expiresAt < new Date()) {
       // Mark as expired
       await db.update(refreshTokens)
         .set({
