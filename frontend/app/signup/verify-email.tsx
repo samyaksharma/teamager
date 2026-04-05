@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import axios from 'axios'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,18 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { CheckCircle, XCircle, MailCheck } from 'lucide-react'
 
 export default function VerifyEmailPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-background p-4">
+        <div className="h-16 w-16 animate-pulse rounded-full bg-primary/20" />
+      </div>
+    }>
+      <VerifyEmailInner />
+    </Suspense>
+  )
+}
+
+function VerifyEmailInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
