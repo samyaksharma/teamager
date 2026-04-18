@@ -1,15 +1,29 @@
 **/.claude/settings.local.json
 backend/logs/*
+
+# Environment files
 .env
 backend/.env
+frontend/.env.local
 
 # Archives
 *.zip
 
-# Temporary SQL scripts
+# Temporary scripts
 quick-token-check.sql
 backend/final-enum-migration.sql
 backend/manual_migration.sql
 backend/migrate_invitations.sql
 backend/migration-to-enums.sql
 backend/safe-enum-migration.sql
+backend/temp-schema-revert.ts
+backend/check-tokens.js
+
+# Test scripts
+frontend/public/realistic-test.js
+frontend/public/improved-test.js
+frontend/public/script-sync-test.js
+frontend/public/atomic-test.js
+frontend/public/working-test.js
+frontend/public/different-messages-test.js
+frontend/public/typing-simulator.js

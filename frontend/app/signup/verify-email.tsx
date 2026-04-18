@@ -36,7 +36,8 @@ function VerifyEmailInner() {
 
     const verifyEmail = async () => {
       try {
-        const response = await axios.get(`http://localhost:3001/api/verification/verify-email?token=${token}`)
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+        const response = await axios.get(`${apiUrl}/api/verification/verify-email?token=${token}`)
         
         setVerificationStatus('success')
         setMessage('Your email has been successfully verified! You can now login to your account.')

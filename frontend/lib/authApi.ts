@@ -2,8 +2,9 @@
 
 import axios from 'axios'
 
-// Use localhost URL for local development
-const API_URL = 'http://localhost:3001'
+import { config } from './config'
+
+const API_URL = config.apiUrl
 
 // Create separate auth-specific axios instance to avoid interceptor issues
 const authAxios = axios.create({

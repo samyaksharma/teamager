@@ -59,7 +59,7 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
     const timeoutId = setTimeout(async () => {
       setUsernameChecking(true)
       try {
-        const API_URL = 'http://localhost:3001'
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
         const response = await axios.get(`${API_URL}/api/auth/check-username?username=${formData.username}`)
         setUsernameAvailable(!response.data.exists)
         
