@@ -59,6 +59,7 @@ import {
 import { useState, useEffect } from "react"
 import { TasksProvider, useTasks } from "./tasksContext"
 import AuthContext, { useAuth } from "@/lib/authContext"
+import { teamApi } from "@/lib/api"
 
 // Edit Task Form Component
 function EditTaskForm({ task, teams, organizations, users, onSave, onCancel }: {
@@ -210,9 +211,7 @@ function TasksContent() {
       try {
         let allMembers: any[] = []
         for (const team of teams) {
-          const members = await fetch(`/api/teams/${team.id}/members`, {
-            credentials: 'include'
-          }).then(res => res.json())
+          const members = await teamApi.getMembers(team.id)
           allMembers = [...allMembers, ...members]
         }
         // Remove duplicates

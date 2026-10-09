@@ -22,7 +22,7 @@ interface CreateChannelDialogProps {
     description?: string
     isPrivate?: boolean
     type?: number
-  }) => Promise<void>
+  }) => Promise<{ id: string } | undefined>
 }
 
 export function CreateChannelDialog({

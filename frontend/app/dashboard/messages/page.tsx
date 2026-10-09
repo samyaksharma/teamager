@@ -116,7 +116,9 @@ export default function MessagesPage() {
     if (teams.length > 0) {
       checkPermissions()
     }
-  }, [teams, canCreateChannels])
+    // canCreateChannels is re-created every render; depending on it would re-run this on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams])
 
   // Handle send message
   const handleSendMessage = (e: React.FormEvent) => {
@@ -222,7 +224,7 @@ export default function MessagesPage() {
                     <Hash className="h-4 w-4 mr-2" />
                   )}
                   {channel.name}
-                  {channel.unreadCount && channel.unreadCount > 0 && (
+                  {(channel.unreadCount ?? 0) > 0 && (
                     <Badge variant="secondary" className="ml-auto">
                       {channel.unreadCount}
                     </Badge>
@@ -234,9 +236,6 @@ export default function MessagesPage() {
           <div className="mt-4">
             <div className="px-3 py-1.5 flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-500 uppercase">Direct Messages</span>
-              <Button variant="ghost" size="icon" className="h-5 w-5">
-                <Plus className="h-3 w-3" />
-              </Button>
             </div>
             <div className="mt-1">
               {filteredContacts.map(contact => (
@@ -257,7 +256,7 @@ export default function MessagesPage() {
                     }`}></div>
                   </div>
                   {contact.name}
-                  {contact.unreadCount && contact.unreadCount > 0 && (
+                  {(contact.unreadCount ?? 0) > 0 && (
                     <Badge variant="secondary" className="ml-auto">
                       {contact.unreadCount}
                     </Badge>
@@ -319,12 +318,6 @@ export default function MessagesPage() {
                 >
                   <Hash className="h-4 w-4 mr-2" />
                   Create Channel
-                </Button>
-                <Button onClick={() => {
-                  // Open direct message dialog
-                }}>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  New Message
                 </Button>
               </div>
             </div>

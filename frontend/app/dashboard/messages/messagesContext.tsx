@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useSocket } from '@/lib/socketContext'
-import { channelsApi, directMessagesApi } from '@/lib/api'
+import { channelsApi, directMessagesApi, teamApi } from '@/lib/api'
 import { useAuth } from '@/lib/authContext'
 import { toast } from 'sonner'
 
@@ -12,6 +12,7 @@ interface User {
   username?: string
   avatar?: string
   status?: 'online' | 'offline' | 'away'
+  unreadCount?: number
 }
 
 export interface Reaction {
@@ -65,6 +66,18 @@ interface DirectMessage {
   receiver?: User
 }
 
+// Convert an API direct message row into the shape the UI uses
+export const normalizeDirectMessage = (raw: any): DirectMessage => ({
+  id: raw.id,
+  senderId: raw.senderId,
+  receiverId: raw.receiverId,
+  content: raw.content,
+  timestamp: new Date(raw.timestamp ?? raw.createdAt),
+  readAt: raw.readAt ? new Date(raw.readAt) : undefined,
+  isDeleted: !!raw.deletedAt,
+  sender: raw.sender ?? { id: raw.senderId, name: raw.senderName ?? 'Unknown', avatar: raw.senderAvatar ?? undefined }
+})
+
 interface Channel {
   id: string
   name: string
@@ -98,7 +111,7 @@ interface MessagesContextType {
   sendThreadReply: (content: string) => Promise<void>
   currentUserId: string | undefined
   markChannelAsRead: (channelId: string) => void
-  createChannel: (channelData: { name: string, teamId: string, description?: string, isPrivate?: boolean, type?: number }) => Promise<void>
+  createChannel: (channelData: { name: string, teamId: string, description?: string, isPrivate?: boolean, type?: number }) => Promise<Channel>
   canCreateChannels: (teamId: string) => Promise<{ canCreate: boolean, reason?: string }>
 
   // Direct message state
@@ -134,7 +147,7 @@ const MessagesContext = createContext<MessagesContextType>({
   sendThreadReply: async () => {},
   currentUserId: undefined,
   markChannelAsRead: () => {},
-  createChannel: async () => {},
+  createChannel: async () => ({} as Channel),
   canCreateChannels: async () => ({ canCreate: false }),
 
   // Direct message state
@@ -156,7 +169,7 @@ const MessagesContext = createContext<MessagesContextType>({
 export const useMessages = () => useContext(MessagesContext)
 
 export const MessagesProvider = ({ children }: { children: React.ReactNode }) => {
-  const { socket, isConnected, joinRoom } = useSocket()
+  const { joinRoom } = useSocket()
   const { user: authUser, teams } = useAuth()
 
   // Shared state
@@ -225,18 +238,43 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     fetchChannels()
   }, [teams])
 
-  // Load direct message contacts
+  // Load direct message contacts: everyone who shares a team with the current user, with unread counts
+  const activeContactId = activeDirectContact?.id
   useEffect(() => {
+    if (!authUser || teams.length === 0) return
+
     const fetchContacts = async () => {
       try {
-        // Get this from API when available - for now show empty state
-        setDirectContacts([])
+        const [memberLists, unread] = await Promise.all([
+          Promise.all(teams.map(team => teamApi.getMembers(team.id).catch(() => []))),
+          directMessagesApi.getUnreadMessages().catch(() => [])
+        ])
+
+        const unreadBySender = new Map<string, number>()
+        for (const message of unread) {
+          unreadBySender.set(message.senderId, (unreadBySender.get(message.senderId) ?? 0) + 1)
+        }
+
+        const byId = new Map<string, User>()
+        for (const member of memberLists.flat()) {
+          if (member.id === authUser.id || byId.has(member.id)) continue
+          byId.set(member.id, {
+            id: member.id,
+            name: member.name,
+            username: member.username,
+            avatar: member.avatarUrl ?? undefined,
+            unreadCount: member.id === activeContactId ? 0 : unreadBySender.get(member.id) ?? 0
+          })
+        }
+        setDirectContacts([...byId.values()].sort((a, b) => a.name.localeCompare(b.name)))
       } catch (err) {
       }
     }
 
     fetchContacts()
-  }, [])
+    const intervalId = setInterval(fetchContacts, 10000)
+    return () => clearInterval(intervalId)
+  }, [authUser?.id, teams, activeContactId])
 
   // Load channel messages when active channel changes
   useEffect(() => {
@@ -275,39 +313,14 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
       setIsLoading(true)
       try {
         const response = await directMessagesApi.getMessagesWithUser(activeDirectContact.id)
-        setDirectMessages(response)
+        setDirectMessages(response.map(normalizeDirectMessage))
 
         // Mark all messages as read
         await markAllDirectMessagesAsRead()
       } catch (err) {
         setError('Failed to load direct messages')
 
-        // Fallback to sample data
-        setDirectMessages([
-          {
-            id: 'dm1',
-            senderId: 'user2',
-            receiverId: currentUser.id,
-            content: 'Hey, how are you doing?',
-            timestamp: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
-            sender: {
-              id: 'user2',
-              name: 'Mike Thompson',
-              avatar: '/placeholder-user.jpg'
-            }
-          },
-          {
-            id: 'dm2',
-            senderId: currentUser.id,
-            receiverId: 'user2',
-            content: 'Doing well, thanks! Working on the new feature.',
-            timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-            sender: {
-              id: currentUser.id,
-              name: currentUser.name
-            }
-          }
-        ])
+        setDirectMessages([])
       } finally {
         setIsLoading(false)
       }
@@ -344,33 +357,15 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     if (!isDirectMessageActive || !activeDirectContact) return
     
-    let lastMessageTimestamp = directMessages.length > 0 
-      ? Math.max(...directMessages.map(msg => new Date(msg.timestamp).getTime()))
-      : 0;
-    
-    // Function to fetch new direct messages
+    // Refresh the conversation and mark anything newly received as read
     const fetchNewDirectMessages = async () => {
       try {
-        // Get messages after the last one we have
-        const newMessages = await directMessagesApi.getMessagesBetweenUsers(
-          activeDirectContact.id,
-          { after: new Date(lastMessageTimestamp) }
-        );
-        
-        if (newMessages.length > 0) {
-          // Update messages
-          setDirectMessages(prev => [...prev, ...newMessages]);
-          
-          // Update latest timestamp
-          lastMessageTimestamp = Math.max(...newMessages.map(msg => 
-            new Date(msg.timestamp).getTime()
-          ));
-          
-          // Mark new messages as read
-          for (const message of newMessages) {
-            if (message.senderId === activeDirectContact.id && !message.readAt) {
-              directMessagesApi.markAsRead(message.id);
-            }
+        const latest = (await directMessagesApi.getMessagesWithUser(activeDirectContact.id)).map(normalizeDirectMessage)
+        setDirectMessages(latest)
+
+        for (const message of latest) {
+          if (message.senderId === activeDirectContact.id && !message.readAt) {
+            directMessagesApi.markAsRead(message.id).catch(() => {})
           }
         }
       } catch (err) {
@@ -386,7 +381,7 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     return () => {
       clearInterval(intervalId);
     };
-  }, [activeDirectContact, isDirectMessageActive, directMessages])
+  }, [activeDirectContact, isDirectMessageActive])
 
   // Poll for user status updates instead of using WebSockets
   useEffect(() => {
@@ -558,26 +553,8 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     if (!activeDirectContact || !content.trim() || !isDirectMessageActive) return
 
     try {
-      // First, add the message locally for immediate feedback
-      const newMessage: DirectMessage = {
-        id: `dm-${Date.now()}`,
-        senderId: currentUser.id,
-        receiverId: activeDirectContact.id,
-        content,
-        timestamp: new Date(),
-        sender: {
-          id: currentUser.id,
-          name: currentUser.name,
-          avatar: currentUser.avatar
-        },
-        receiver: activeDirectContact
-      }
-
-      setDirectMessages(prev => [...prev, newMessage])
-
-      // Send via API
-      await directMessagesApi.sendMessage(activeDirectContact.id, content)
-
+      const created = await directMessagesApi.sendMessage(activeDirectContact.id, content)
+      setDirectMessages(prev => [...prev, normalizeDirectMessage(created)])
     } catch (err) {
       setError('Failed to send direct message')
     }
