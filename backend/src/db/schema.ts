@@ -174,8 +174,29 @@ export const messages = pgTable("message", {
     .notNull()
     .references(() => channels.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull()
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  pinnedAt: timestamp("pinned_at"),
+  pinnedBy: uuid("pinned_by").references(() => users.id, { onDelete: "set null" }),
+  // Thread reply: points at the top-level message being replied to
+  parentId: uuid("parent_id"),
+  // Task created from this message
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" })
 })
+
+// Message reactions
+export const messageReactions = pgTable("message_reaction", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  messageId: uuid("message_id")
+    .notNull()
+    .references(() => messages.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  emoji: varchar("emoji", { length: 32 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (table) => ({
+  reactionUnique: unique().on(table.messageId, table.userId, table.emoji)
+}))
 
 // Direct messages
 export const directMessages = pgTable("direct_message", {

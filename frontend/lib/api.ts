@@ -458,6 +458,37 @@ export const channelsApi = {
     return response.data
   },
 
+  setMessagePinned: async (channelId: string, messageId: string, pinned: boolean) => {
+    const url = `/api/channels/${channelId}/messages/${messageId}/pin`
+    const response = pinned ? await api.put(url) : await api.delete(url)
+    return response.data
+  },
+
+  searchMessages: async (channelId: string, query: string) => {
+    const response = await api.get(`/api/channels/${channelId}/messages`, { params: { q: query } })
+    return response.data
+  },
+
+  getReplies: async (channelId: string, messageId: string) => {
+    const response = await api.get(`/api/channels/${channelId}/messages/${messageId}/replies`)
+    return response.data
+  },
+
+  sendReply: async (channelId: string, messageId: string, content: string) => {
+    const response = await api.post(`/api/channels/${channelId}/messages`, { content, parentId: messageId })
+    return response.data
+  },
+
+  toggleReaction: async (channelId: string, messageId: string, emoji: string) => {
+    const response = await api.post(`/api/channels/${channelId}/messages/${messageId}/reactions`, { emoji })
+    return response.data
+  },
+
+  createTaskFromMessage: async (channelId: string, messageId: string) => {
+    const response = await api.post(`/api/channels/${channelId}/messages/${messageId}/task`)
+    return response.data
+  },
+
   canCreateChannel: async (teamId: string) => {
     const response = await api.get(`/api/channels/can-create/${teamId}`)
     return response.data

@@ -1,6 +1,6 @@
 import express from 'express'
-import { eq, and, desc } from 'drizzle-orm'
-import { db, channels, messages, users, teamUsers } from '../db'
+import { eq, and, desc, asc, isNull, inArray, ilike, sql } from 'drizzle-orm'
+import { db, channels, messages, messageReactions, users, teamUsers, teams, tasks, taskTeams } from '../db'
 import { verifyToken } from '../middleware/auth'
 import { TeamRole } from '../types/enums'
 
@@ -298,57 +298,92 @@ router.put('/:channelId', async (req, res) => {
   }
 })
 
+// Shared helpers for message features
+const messageSelect = {
+  id: messages.id,
+  content: messages.content,
+  userId: messages.userId,
+  channelId: messages.channelId,
+  createdAt: messages.createdAt,
+  pinnedAt: messages.pinnedAt,
+  parentId: messages.parentId,
+  taskId: messages.taskId,
+  userName: users.name,
+  userAvatar: users.avatarUrl
+}
+
+// Returns the channel if the user is in its team, otherwise null
+async function getAccessibleChannel(channelId: string, userId: string) {
+  const channel = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1)
+  if (channel.length === 0) return { error: 404, message: 'Channel not found' } as const
+  const membership = await db.select()
+    .from(teamUsers)
+    .where(and(eq(teamUsers.teamId, channel[0].teamId), eq(teamUsers.userId, userId)))
+    .limit(1)
+  if (membership.length === 0) return { error: 403, message: 'Access denied to this channel' } as const
+  return { channel: channel[0] } as const
+}
+
+// Attach reactions ([{ emoji, count, userIds }]) and replyCount to messages
+async function withReactionsAndReplies<T extends { id: string }>(rows: T[]) {
+  if (rows.length === 0) return []
+  const ids = rows.map(r => r.id)
+  const [reactionRows, replyRows] = await Promise.all([
+    db.select({ messageId: messageReactions.messageId, emoji: messageReactions.emoji, userId: messageReactions.userId })
+      .from(messageReactions)
+      .where(inArray(messageReactions.messageId, ids)),
+    db.select({ parentId: messages.parentId, count: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(inArray(messages.parentId, ids))
+      .groupBy(messages.parentId)
+  ])
+  return rows.map(r => {
+    const byEmoji = new Map<string, string[]>()
+    for (const rx of reactionRows.filter(x => x.messageId === r.id)) {
+      byEmoji.set(rx.emoji, [...(byEmoji.get(rx.emoji) ?? []), rx.userId])
+    }
+    return {
+      ...r,
+      reactions: [...byEmoji].map(([emoji, userIds]) => ({ emoji, count: userIds.length, userIds })),
+      replyCount: replyRows.find(x => x.parentId === r.id)?.count ?? 0
+    }
+  })
+}
+
 // Get channel messages - matches frontend GET /api/channels/{channelId}/messages
 router.get('/:channelId/messages', async (req, res) => {
   try {
     const { channelId } = req.params
-    const { limit } = req.query
+    const { limit, q } = req.query
     const userId = req.user!.userId
 
-    const channel = await db.select()
-      .from(channels)
-      .where(eq(channels.id, channelId))
-      .limit(1)
-
-    if (channel.length === 0) {
-      return res.status(404).json({ message: 'Channel not found' })
-    }
-
-    const channelData = channel[0]
-
-    const teamMembership = await db.select()
-      .from(teamUsers)
-      .where(and(
-        eq(teamUsers.teamId, channelData.teamId),
-        eq(teamUsers.userId, userId)
-      ))
-      .limit(1)
-
-    if (teamMembership.length === 0) {
-      return res.status(403).json({ message: 'Access denied to this channel' })
+    const access = await getAccessibleChannel(channelId, userId)
+    if (access.error !== undefined) {
+      return res.status(access.error).json({ message: access.message })
     }
 
     const limitNum = limit ? parseInt(limit as string) : undefined
+    const search = typeof q === 'string' ? q.trim() : ''
 
-    let messagesQuery = db.select({
-      id: messages.id,
-      content: messages.content,
-      userId: messages.userId,
-      channelId: messages.channelId,
-      createdAt: messages.createdAt,
-      userName: users.name,
-      userAvatar: users.avatarUrl
-    })
+    // Thread replies are fetched separately; search covers replies too
+    const conditions = [eq(messages.channelId, channelId)]
+    if (search) {
+      conditions.push(ilike(messages.content, `%${search.replace(/[\\%_]/g, '\\$&')}%`))
+    } else {
+      conditions.push(isNull(messages.parentId))
+    }
+
+    let messagesQuery = db.select(messageSelect)
       .from(messages)
       .leftJoin(users, eq(messages.userId, users.id))
-      .where(eq(messages.channelId, channelId))
+      .where(and(...conditions))
       .orderBy(desc(messages.createdAt))
 
     if (limitNum) {
       messagesQuery = (messagesQuery as any).limit(limitNum)
     }
 
-    const channelMessages = await messagesQuery
+    const channelMessages = await withReactionsAndReplies(await messagesQuery)
 
     // Reverse to get chronological order
     res.json(channelMessages.reverse())
@@ -358,11 +393,117 @@ router.get('/:channelId/messages', async (req, res) => {
   }
 })
 
+// Get replies in a thread
+router.get('/:channelId/messages/:messageId/replies', async (req, res) => {
+  try {
+    const { channelId, messageId } = req.params
+    const access = await getAccessibleChannel(channelId, req.user!.userId)
+    if (access.error !== undefined) {
+      return res.status(access.error).json({ message: access.message })
+    }
+
+    const replies = await db.select(messageSelect)
+      .from(messages)
+      .leftJoin(users, eq(messages.userId, users.id))
+      .where(and(eq(messages.channelId, channelId), eq(messages.parentId, messageId)))
+      .orderBy(asc(messages.createdAt))
+
+    res.json(await withReactionsAndReplies(replies))
+  } catch (error) {
+    console.error('Get thread replies error:', error)
+    res.status(500).json({ message: 'Failed to get replies' })
+  }
+})
+
+// Toggle a reaction on a message
+router.post('/:channelId/messages/:messageId/reactions', async (req, res) => {
+  try {
+    const { channelId, messageId } = req.params
+    const emoji = typeof req.body.emoji === 'string' ? req.body.emoji.trim() : ''
+    const userId = req.user!.userId
+
+    if (!emoji || emoji.length > 32) {
+      return res.status(400).json({ message: 'A valid emoji is required' })
+    }
+
+    const access = await getAccessibleChannel(channelId, userId)
+    if (access.error !== undefined) {
+      return res.status(access.error).json({ message: access.message })
+    }
+
+    const message = await db.select({ id: messages.id }).from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId))).limit(1)
+    if (message.length === 0) {
+      return res.status(404).json({ message: 'Message not found' })
+    }
+
+    const existing = and(
+      eq(messageReactions.messageId, messageId),
+      eq(messageReactions.userId, userId),
+      eq(messageReactions.emoji, emoji)
+    )
+    const removed = await db.delete(messageReactions).where(existing).returning({ id: messageReactions.id })
+    if (removed.length === 0) {
+      await db.insert(messageReactions).values({ messageId, userId, emoji })
+    }
+
+    const [updated] = await withReactionsAndReplies([{ id: messageId }])
+    res.json({ reactions: updated.reactions })
+  } catch (error) {
+    console.error('Toggle reaction error:', error)
+    res.status(500).json({ message: 'Failed to update reaction' })
+  }
+})
+
+// Create a task from a message
+router.post('/:channelId/messages/:messageId/task', async (req, res) => {
+  try {
+    const { channelId, messageId } = req.params
+    const userId = req.user!.userId
+
+    const access = await getAccessibleChannel(channelId, userId)
+    if (access.error !== undefined) {
+      return res.status(access.error).json({ message: access.message })
+    }
+
+    const message = await db.select().from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId))).limit(1)
+    if (message.length === 0) {
+      return res.status(404).json({ message: 'Message not found' })
+    }
+    if (message[0].taskId) {
+      return res.status(409).json({ message: 'A task was already created from this message' })
+    }
+
+    const team = await db.select({ organizationId: teams.organizationId }).from(teams)
+      .where(eq(teams.id, access.channel.teamId)).limit(1)
+
+    const content = message[0].content
+    const title = (typeof req.body.title === 'string' && req.body.title.trim())
+      || (content.length > 100 ? `${content.slice(0, 97)}...` : content)
+
+    const [task] = await db.insert(tasks).values({
+      title,
+      description: content,
+      organizationId: team[0]?.organizationId ?? null,
+      createdBy: userId
+    }).returning()
+
+    await db.insert(taskTeams).values({ taskId: task.id, teamId: access.channel.teamId })
+    await db.update(messages).set({ taskId: task.id }).where(eq(messages.id, messageId))
+
+    res.status(201).json({ taskId: task.id, title: task.title })
+  } catch (error) {
+    console.error('Create task from message error:', error)
+    res.status(500).json({ message: 'Failed to create task from message' })
+  }
+})
+
 // Create channel message - matches frontend POST /api/channels/{channelId}/messages
 router.post('/:channelId/messages', async (req, res) => {
   try {
     const { channelId } = req.params
-    const { content } = req.body
+    const { content, parentId } = req.body
     const userId = req.user!.userId
 
     if (!content || content.trim() === '') {
@@ -394,25 +535,27 @@ router.post('/:channelId/messages', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this channel' })
     }
 
+    // Replies must target a top-level message in the same channel
+    if (parentId) {
+      const parent = await db.select({ id: messages.id, parentId: messages.parentId }).from(messages)
+        .where(and(eq(messages.id, parentId), eq(messages.channelId, channelId))).limit(1)
+      if (parent.length === 0 || parent[0].parentId) {
+        return res.status(400).json({ message: 'Invalid thread parent' })
+      }
+    }
+
     // Create message
     const newMessage = await db.insert(messages)
       .values({
         content: content.trim(),
         userId,
-        channelId
+        channelId,
+        parentId: parentId ?? null
       })
       .returning()
 
     // Get message with user info
-    const messageWithUser = await db.select({
-      id: messages.id,
-      content: messages.content,
-      userId: messages.userId,
-      channelId: messages.channelId,
-      createdAt: messages.createdAt,
-      userName: users.name,
-      userAvatar: users.avatarUrl
-    })
+    const messageWithUser = await db.select(messageSelect)
       .from(messages)
       .leftJoin(users, eq(messages.userId, users.id))
       .where(eq(messages.id, newMessage[0].id))
@@ -424,6 +567,43 @@ router.post('/:channelId/messages', async (req, res) => {
     res.status(500).json({ message: 'Failed to create message' })
   }
 })
+
+// Pin / unpin a channel message
+const setMessagePinned = (pinned: boolean) => async (req: express.Request, res: express.Response) => {
+  try {
+    const { channelId, messageId } = req.params
+    const userId = req.user!.userId
+
+    const channel = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1)
+    if (channel.length === 0) {
+      return res.status(404).json({ message: 'Channel not found' })
+    }
+
+    const teamMembership = await db.select()
+      .from(teamUsers)
+      .where(and(eq(teamUsers.teamId, channel[0].teamId), eq(teamUsers.userId, userId)))
+      .limit(1)
+    if (teamMembership.length === 0) {
+      return res.status(403).json({ message: 'Access denied to this channel' })
+    }
+
+    const updated = await db.update(messages)
+      .set(pinned ? { pinnedAt: new Date(), pinnedBy: userId } : { pinnedAt: null, pinnedBy: null })
+      .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)))
+      .returning({ id: messages.id, pinnedAt: messages.pinnedAt })
+
+    if (updated.length === 0) {
+      return res.status(404).json({ message: 'Message not found' })
+    }
+    res.json(updated[0])
+  } catch (error) {
+    console.error('Pin message error:', error)
+    res.status(500).json({ message: 'Failed to update message pin' })
+  }
+}
+
+router.put('/:channelId/messages/:messageId/pin', setMessagePinned(true))
+router.delete('/:channelId/messages/:messageId/pin', setMessagePinned(false))
 
 // Check if user can create channels in a team
 router.get('/can-create/:teamId', async (req, res) => {

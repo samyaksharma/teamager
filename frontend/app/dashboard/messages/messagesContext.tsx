@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useSocket } from '@/lib/socketContext'
 import { channelsApi, directMessagesApi } from '@/lib/api'
 import { useAuth } from '@/lib/authContext'
+import { toast } from 'sonner'
 
 interface User {
   id: string
@@ -13,7 +14,13 @@ interface User {
   status?: 'online' | 'offline' | 'away'
 }
 
-interface Message {
+export interface Reaction {
+  emoji: string
+  count: number
+  userIds: string[]
+}
+
+export interface Message {
   id: string
   sender: {
     id: string
@@ -23,7 +30,28 @@ interface Message {
   content: string
   timestamp: Date
   channelId: string
+  pinnedAt?: string | null
+  reactions?: Reaction[]
+  replyCount?: number
+  taskId?: string | null
 }
+
+// Convert an API message row into the shape the UI uses
+export const normalizeMessage = (raw: any): Message => ({
+  id: raw.id,
+  sender: {
+    id: raw.sender?.id ?? raw.userId,
+    name: raw.sender?.name ?? raw.userName ?? 'Unknown',
+    avatar: raw.sender?.avatar ?? raw.userAvatar ?? undefined
+  },
+  content: raw.content,
+  timestamp: new Date(raw.timestamp ?? raw.createdAt),
+  channelId: raw.channelId,
+  pinnedAt: raw.pinnedAt ?? null,
+  reactions: raw.reactions ?? [],
+  replyCount: raw.replyCount ?? 0,
+  taskId: raw.taskId ?? null
+})
 
 interface DirectMessage {
   id: string
@@ -60,6 +88,15 @@ interface MessagesContextType {
   messages: Message[]
   setActiveChannel: (channelId: string) => void
   sendChannelMessage: (content: string) => Promise<void>
+  toggleMessagePin: (messageId: string) => Promise<void>
+  toggleReaction: (messageId: string, emoji: string, threadParentId?: string) => Promise<void>
+  createTaskFromMessage: (messageId: string) => Promise<void>
+  threadParent: Message | null
+  threadReplies: Message[]
+  openThread: (messageId: string) => Promise<void>
+  closeThread: () => void
+  sendThreadReply: (content: string) => Promise<void>
+  currentUserId: string | undefined
   markChannelAsRead: (channelId: string) => void
   createChannel: (channelData: { name: string, teamId: string, description?: string, isPrivate?: boolean, type?: number }) => Promise<void>
   canCreateChannels: (teamId: string) => Promise<{ canCreate: boolean, reason?: string }>
@@ -87,6 +124,15 @@ const MessagesContext = createContext<MessagesContextType>({
   messages: [],
   setActiveChannel: () => {},
   sendChannelMessage: async () => {},
+  toggleMessagePin: async () => {},
+  toggleReaction: async () => {},
+  createTaskFromMessage: async () => {},
+  threadParent: null,
+  threadReplies: [],
+  openThread: async () => {},
+  closeThread: () => {},
+  sendThreadReply: async () => {},
+  currentUserId: undefined,
   markChannelAsRead: () => {},
   createChannel: async () => {},
   canCreateChannels: async () => ({ canCreate: false }),
@@ -122,6 +168,8 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannelState] = useState<Channel | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
+  const [threadParent, setThreadParent] = useState<Message | null>(null)
+  const [threadReplies, setThreadReplies] = useState<Message[]>([])
 
   // Direct message state
   const [directContacts, setDirectContacts] = useState<User[]>([])
@@ -202,7 +250,7 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
 
         // Fetch messages from API
         const response = await channelsApi.getMessages(activeChannel.id)
-        setMessages(response)
+        setMessages(response.map(normalizeMessage))
 
         // Mark channel as read
         markChannelAsRead(activeChannel.id)
@@ -272,28 +320,11 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     if (!activeChannel || isDirectMessageActive) return
     
-    let lastMessageTimestamp = messages.length > 0 
-      ? Math.max(...messages.map(msg => new Date(msg.timestamp).getTime()))
-      : 0;
-    
-    // Function to fetch new messages
+    // Function to refresh the channel's messages (also picks up reactions and reply counts)
     const fetchNewMessages = async () => {
       try {
-        // Get messages after the last one we have
-        const newMessages = await channelsApi.getMessages(
-          activeChannel.id, 
-          { after: new Date(lastMessageTimestamp) }
-        );
-        
-        if (newMessages.length > 0) {
-          // Update messages
-          setMessages(prev => [...prev, ...newMessages]);
-          
-          // Update latest timestamp
-          lastMessageTimestamp = Math.max(...newMessages.map(msg => 
-            new Date(msg.timestamp).getTime()
-          ));
-        }
+        const latest = await channelsApi.getMessages(activeChannel.id)
+        setMessages(latest.map(normalizeMessage))
       } catch (err) {
       }
     };
@@ -307,7 +338,7 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     return () => {
       clearInterval(intervalId);
     };
-  }, [activeChannel, isDirectMessageActive, messages])
+  }, [activeChannel, isDirectMessageActive])
 
   // Poll for new direct messages instead of using WebSockets
   useEffect(() => {
@@ -397,30 +428,86 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     }
   }
 
+  const toggleMessagePin = async (messageId: string) => {
+    if (!activeChannel) return
+    const target = messages.find(m => m.id === messageId)
+    if (!target) return
+    const pinned = !target.pinnedAt
+
+    try {
+      const result = await channelsApi.setMessagePinned(activeChannel.id, messageId, pinned)
+      patchMessage(messageId, { pinnedAt: result.pinnedAt })
+    } catch (err) {
+      setError('Failed to update pin')
+    }
+  }
+
   const sendChannelMessage = async (content: string) => {
     if (!activeChannel || !content.trim() || isDirectMessageActive) return
 
     try {
-      // First, add the message locally for immediate feedback
-      const newMessage: Message = {
-        id: `msg-${Date.now()}`,
-        sender: {
-          id: currentUser.id,
-          name: currentUser.name,
-          avatar: currentUser.avatar
-        },
-        content,
-        timestamp: new Date(),
-        channelId: activeChannel.id
-      }
-
-      setMessages(prev => [...prev, newMessage])
-
-      // Send via API
-      await channelsApi.sendMessage(activeChannel.id, content)
-
+      const created = await channelsApi.sendMessage(activeChannel.id, content)
+      setMessages(prev => [...prev, normalizeMessage(created)])
     } catch (err) {
       setError('Failed to send message')
+    }
+  }
+
+  // Update a message in both the channel list and the open thread
+  const patchMessage = (messageId: string, patch: Partial<Message>) => {
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, ...patch } : m))
+    setThreadReplies(prev => prev.map(m => m.id === messageId ? { ...m, ...patch } : m))
+    setThreadParent(prev => prev && prev.id === messageId ? { ...prev, ...patch } : prev)
+  }
+
+  const toggleReaction = async (messageId: string, emoji: string) => {
+    if (!activeChannel) return
+    try {
+      const result = await channelsApi.toggleReaction(activeChannel.id, messageId, emoji)
+      patchMessage(messageId, { reactions: result.reactions })
+    } catch (err) {
+      setError('Failed to update reaction')
+    }
+  }
+
+  const createTaskFromMessage = async (messageId: string) => {
+    if (!activeChannel) return
+    try {
+      const result = await channelsApi.createTaskFromMessage(activeChannel.id, messageId)
+      patchMessage(messageId, { taskId: result.taskId })
+      toast.success(`Task created: ${result.title}`)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to create task')
+    }
+  }
+
+  const openThread = async (messageId: string) => {
+    if (!activeChannel) return
+    const parent = messages.find(m => m.id === messageId)
+    if (!parent) return
+    setThreadParent(parent)
+    try {
+      const replies = await channelsApi.getReplies(activeChannel.id, messageId)
+      setThreadReplies(replies.map(normalizeMessage))
+    } catch (err) {
+      setThreadReplies([])
+      setError('Failed to load replies')
+    }
+  }
+
+  const closeThread = () => {
+    setThreadParent(null)
+    setThreadReplies([])
+  }
+
+  const sendThreadReply = async (content: string) => {
+    if (!activeChannel || !threadParent || !content.trim()) return
+    try {
+      const created = await channelsApi.sendReply(activeChannel.id, threadParent.id, content)
+      setThreadReplies(prev => [...prev, normalizeMessage(created)])
+      patchMessage(threadParent.id, { replyCount: (threadParent.replyCount ?? 0) + 1 })
+    } catch (err) {
+      setError('Failed to send reply')
     }
   }
 
@@ -558,6 +645,15 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
         messages,
         setActiveChannel,
         sendChannelMessage,
+        toggleMessagePin,
+        toggleReaction,
+        createTaskFromMessage,
+        threadParent,
+        threadReplies,
+        openThread,
+        closeThread,
+        sendThreadReply,
+        currentUserId: currentUser?.id,
         markChannelAsRead,
         createChannel,
         canCreateChannels,

@@ -18,6 +18,7 @@ import {
   Menu,
   MessageSquare,
   PaperclipIcon,
+  Pin,
   Plus,
   RefreshCw,
   Search,
@@ -27,7 +28,10 @@ import {
   Users,
 } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useMessages } from "./messagesContext"
+import { useMessages, normalizeMessage, type Message } from "./messagesContext"
+import { MessageItem } from "./message-item"
+import { ThreadPanel } from "./thread-panel"
+import { channelsApi } from "@/lib/api"
 import { formatDistanceToNow } from "date-fns"
 import DirectMessageView from "./direct-message"
 import { CreateChannelDialog } from "./create-channel-dialog"
@@ -60,10 +64,32 @@ export default function MessagesPage() {
   } = useMessages()
 
   const [messageInput, setMessageInput] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<Message[]>([])
   const [searchInput, setSearchInput] = useState("")
   const [showCreateChannelDialog, setShowCreateChannelDialog] = useState(false)
   const [canCreateChannelForTeams, setCanCreateChannelForTeams] = useState<Record<string, boolean>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Debounced server-side search within the active channel
+  useEffect(() => {
+    const query = searchQuery.trim()
+    if (!query || !activeChannel) {
+      setSearchResults([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const results = await channelsApi.searchMessages(activeChannel.id, query)
+        setSearchResults(results.map(normalizeMessage))
+      } catch {
+        setSearchResults([])
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery, activeChannel])
+
+  const visibleMessages = searchQuery.trim() ? searchResults : messages
 
   // Scroll to bottom of messages when messages change
   useEffect(() => {
@@ -354,7 +380,13 @@ export default function MessagesPage() {
                 </TooltipProvider>
                 <div className="relative hidden sm:block">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
-                  <Input type="search" placeholder="Search in channel" className="w-48 pl-8 text-sm" />
+                  <Input
+                    type="search"
+                    placeholder="Search in channel"
+                    className="w-48 pl-8 text-sm"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
                 <TooltipProvider>
                   <Tooltip>
@@ -379,43 +411,30 @@ export default function MessagesPage() {
                   <div className="flex-grow border-t"></div>
                 </div>
 
+                {!searchQuery.trim() && messages.some((m) => m.pinnedAt) && (
+                  <div className="rounded-md border bg-muted/50 p-3 text-sm">
+                    <div className="mb-1 flex items-center gap-1 font-medium">
+                      <Pin className="h-3 w-3" /> Pinned messages
+                    </div>
+                    {messages.filter((m) => m.pinnedAt).map((m) => (
+                      <p key={m.id} className="truncate text-muted-foreground">
+                        {m.sender?.name ?? "Unknown"}: {m.content}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
                 {isLoading ? (
                   <div className="text-center text-gray-500 py-10">
                     Loading messages...
                   </div>
-                ) : messages.length > 0 ? (
-                  messages.map((message) => (
-                    <div key={message.id} className="flex gap-3">
-                      <Avatar>
-                        <AvatarImage src={message.sender.avatar || "/placeholder-user.jpg"} alt={message.sender.name} />
-                        <AvatarFallback>{message.sender.name[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{message.sender.name}</span>
-                          <span className="text-xs text-gray-500">
-                            {message.timestamp instanceof Date
-                              ? formatDistanceToNow(message.timestamp, { addSuffix: true })
-                              : formatDistanceToNow(new Date(message.timestamp), { addSuffix: true })}
-                          </span>
-                        </div>
-                        <div className="mt-1">
-                          <p>{message.content}</p>
-                          <div className="mt-2 flex items-center gap-2">
-                            <Button variant="outline" size="sm" className="h-7 rounded-full px-3 text-xs">
-                              👍
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 rounded-full p-0">
-                              <Smile className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                ) : visibleMessages.length > 0 ? (
+                  visibleMessages.map((message) => (
+                    <MessageItem key={message.id} message={message} />
                   ))
                 ) : (
                   <div className="text-center text-gray-500 py-10">
-                    No messages yet. Be the first to send a message!
+                    {searchQuery.trim() ? "No messages match your search." : "No messages yet. Be the first to send a message!"}
                   </div>
                 )}
                 <div ref={messagesEndRef} />
@@ -460,6 +479,9 @@ export default function MessagesPage() {
           <DirectMessageView />
         )}
       </div>
+
+      {/* Thread Panel */}
+      {!isDirectMessageActive && <ThreadPanel />}
 
       {/* Create Channel Dialog */}
       <CreateChannelDialog
