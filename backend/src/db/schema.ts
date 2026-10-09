@@ -303,3 +303,32 @@ export const documentComments = pgTable("document_comment", {
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull()
 })
+
+// In-app notifications
+export const notifications = pgTable("notification", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+  // 'documents' | 'tasks' | 'messages' - matches the per-module settings
+  module: varchar("module", { length: 32 }).notNull(),
+  type: varchar("type", { length: 64 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body"),
+  link: varchar("link", { length: 512 }),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (table) => ({
+  userCreatedIdx: index("notification_user_created_idx").on(table.userId, table.createdAt)
+}))
+
+// Per-module notification settings (a missing row means everything is on)
+export const notificationSettings = pgTable("notification_setting", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  documents: boolean("documents").default(true).notNull(),
+  tasks: boolean("tasks").default(true).notNull(),
+  messages: boolean("messages").default(true).notNull()
+})

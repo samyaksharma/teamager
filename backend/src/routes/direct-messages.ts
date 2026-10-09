@@ -1,6 +1,7 @@
 import express from 'express'
 import { eq, and, or, desc, sql, isNull } from 'drizzle-orm'
 import { db, directMessages, users } from '../db'
+import { notify } from '../utils/inAppNotifications'
 import { verifyToken } from '../middleware/auth'
 
 const router = express.Router()
@@ -185,6 +186,8 @@ router.post('/user/:receiverId', async (req, res) => {
         receiverId
       })
       .returning()
+
+    await notify({ userId: receiverId, actorId: userId, module: 'messages', type: 'direct_message', title: 'sent you a direct message', body: content.trim(), link: '/dashboard/messages' })
 
     // Get message with sender info
     const messageWithSender = await db.select({

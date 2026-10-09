@@ -3,6 +3,7 @@ import { eq, and, desc, asc, isNull, inArray, ilike, sql } from 'drizzle-orm'
 import { db, channels, messages, messageReactions, users, teamUsers, teams, tasks, taskTeams } from '../db'
 import { verifyToken } from '../middleware/auth'
 import { TeamRole } from '../types/enums'
+import { notify } from '../utils/inAppNotifications'
 
 const router = express.Router()
 
@@ -431,7 +432,7 @@ router.post('/:channelId/messages/:messageId/reactions', async (req, res) => {
       return res.status(access.error).json({ message: access.message })
     }
 
-    const message = await db.select({ id: messages.id }).from(messages)
+    const message = await db.select({ id: messages.id, userId: messages.userId, content: messages.content }).from(messages)
       .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId))).limit(1)
     if (message.length === 0) {
       return res.status(404).json({ message: 'Message not found' })
@@ -445,6 +446,7 @@ router.post('/:channelId/messages/:messageId/reactions', async (req, res) => {
     const removed = await db.delete(messageReactions).where(existing).returning({ id: messageReactions.id })
     if (removed.length === 0) {
       await db.insert(messageReactions).values({ messageId, userId, emoji })
+      await notify({ userId: message[0].userId, actorId: userId, module: 'messages', type: 'message_reaction', title: `reacted ${emoji} to your message`, body: message[0].content, link: '/dashboard/messages' })
     }
 
     const [updated] = await withReactionsAndReplies([{ id: messageId }])
@@ -536,12 +538,14 @@ router.post('/:channelId/messages', async (req, res) => {
     }
 
     // Replies must target a top-level message in the same channel
+    let threadParentAuthor: string | null = null
     if (parentId) {
-      const parent = await db.select({ id: messages.id, parentId: messages.parentId }).from(messages)
+      const parent = await db.select({ id: messages.id, parentId: messages.parentId, userId: messages.userId }).from(messages)
         .where(and(eq(messages.id, parentId), eq(messages.channelId, channelId))).limit(1)
       if (parent.length === 0 || parent[0].parentId) {
         return res.status(400).json({ message: 'Invalid thread parent' })
       }
+      threadParentAuthor = parent[0].userId
     }
 
     // Create message
@@ -553,6 +557,10 @@ router.post('/:channelId/messages', async (req, res) => {
         parentId: parentId ?? null
       })
       .returning()
+
+    if (threadParentAuthor) {
+      await notify({ userId: threadParentAuthor, actorId: userId, module: 'messages', type: 'thread_reply', title: 'replied to your message', body: content.trim(), link: '/dashboard/messages' })
+    }
 
     // Get message with user info
     const messageWithUser = await db.select(messageSelect)

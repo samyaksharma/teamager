@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { NotificationBell } from "@/components/notification-bell"
 import { TeamagerLogo } from "@/components/teamager-logo"
 import { MessagesProvider } from "./messages/messagesContext"
 import { useAuth } from "@/lib/authContext"
@@ -182,9 +183,7 @@ export default function DashboardLayout({
               {/* Mobile Right Section */}
               <div className="flex items-center gap-1 md:hidden">
                 {/* Notifications */}
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Bell className="h-4 w-4" />
-                </Button>
+                <NotificationBell />
 
                 {/* Theme Toggle */}
                 <ThemeToggle />
@@ -250,9 +249,7 @@ export default function DashboardLayout({
 
               {/* Desktop Notifications & Theme - Visible on desktop */}
               <div className="hidden md:flex items-center gap-1">
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <Bell className="h-4 w-4" />
-                </Button>
+                <NotificationBell />
                 <ThemeToggle />
               </div>
             </div>

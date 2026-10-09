@@ -1,6 +1,7 @@
 import express from 'express'
 import { eq, and, or, isNull, sql } from 'drizzle-orm'
 import { db, tasks, users, teams, teamUsers, taskTeams, organizations } from '../db'
+import { notify } from '../utils/inAppNotifications'
 import { verifyToken } from '../middleware/auth'
 import { TaskStatus, TaskPriority, TaskType } from '../types/enums'
 
@@ -336,6 +337,10 @@ router.post('/', async (req, res) => {
       .where(eq(tasks.id, newTask[0].id))
       .limit(1)
 
+    if (assignedTo) {
+      await notify({ userId: assignedTo, actorId: userId, module: 'tasks', type: 'task_assigned', title: 'assigned you a task', body: newTask[0].title, link: '/dashboard/tasks' })
+    }
+
     // Get assignee details
     let assignee = null
     if (assignedTo) {
@@ -442,6 +447,10 @@ router.put('/:taskId', async (req, res) => {
     await db.update(tasks)
       .set(updateData)
       .where(eq(tasks.id, taskId))
+
+    if (assignedTo && assignedTo !== existingTask[0].assignedTo) {
+      await notify({ userId: assignedTo, actorId: userId, module: 'tasks', type: 'task_assigned', title: 'assigned you a task', body: updateData.title ?? existingTask[0].title, link: '/dashboard/tasks' })
+    }
 
     // Get updated task with related data
     const updatedTask = await db.select({

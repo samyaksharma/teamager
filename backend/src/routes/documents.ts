@@ -1,6 +1,7 @@
 import express from 'express'
 import { eq, and, or, isNull, sql } from 'drizzle-orm'
 import { db, documents, users, teams, teamUsers, organizationUsers, documentRoles } from '../db'
+import { notify } from '../utils/inAppNotifications'
 import { verifyToken } from '../middleware/auth'
 import { getDocumentPermissions, checkDocumentAccess, assignDocumentRole, removeDocumentRole } from '../utils/permissions'
 import { DocumentRole } from '../types/enums'
@@ -404,6 +405,11 @@ router.post('/:docId/permissions', async (req, res) => {
     
     if (!result.success) {
       return res.status(403).json({ message: result.error })
+    }
+
+    if (targetUserId) {
+      const doc = await db.select({ title: documents.title }).from(documents).where(eq(documents.id, docId)).limit(1)
+      await notify({ userId: targetUserId, actorId: assignerId, module: 'documents', type: 'document_shared', title: `shared a document with you as ${role}`, body: doc[0]?.title, link: `/dashboard/documents/${docId}` })
     }
 
     res.json({ message: 'Role assigned successfully' })

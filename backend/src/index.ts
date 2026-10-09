@@ -56,6 +56,7 @@ import directMessageRoutes from './routes/direct-messages'
 import invitationRoutes from './routes/invitations'
 import dashboardRoutes from './routes/dashboard'
 import logRoutes from './routes/logs'
+import notificationRoutes from './routes/notifications'
 
 // API Routes - matching frontend expectations
 app.use('/api/auth', authRoutes)
@@ -70,6 +71,7 @@ app.use('/api/direct-messages', directMessageRoutes)
 app.use('/api/invitations', invitationRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/logs', logRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

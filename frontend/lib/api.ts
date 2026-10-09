@@ -544,6 +544,34 @@ export const directMessagesApi = {
   }
 }
 
+// Notification-related API calls
+export const notificationsApi = {
+  list: async (limit?: number) => {
+    const response = await api.get('/api/notifications', { params: { limit } })
+    return response.data
+  },
+
+  markRead: async (id: string) => {
+    const response = await api.put(`/api/notifications/${id}/read`)
+    return response.data
+  },
+
+  markAllRead: async () => {
+    const response = await api.put('/api/notifications/read-all')
+    return response.data
+  },
+
+  getSettings: async () => {
+    const response = await api.get('/api/notifications/settings')
+    return response.data
+  },
+
+  updateSettings: async (settings: { documents?: boolean, tasks?: boolean, messages?: boolean }) => {
+    const response = await api.put('/api/notifications/settings', settings)
+    return response.data
+  }
+}
+
 // User-related API calls
 export const usersApi = {
   getCurrentUser: async () => {
