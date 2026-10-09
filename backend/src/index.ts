@@ -57,6 +57,7 @@ import invitationRoutes from './routes/invitations'
 import dashboardRoutes from './routes/dashboard'
 import logRoutes from './routes/logs'
 import notificationRoutes from './routes/notifications'
+import searchRoutes from './routes/search'
 
 // API Routes - matching frontend expectations
 app.use('/api/auth', authRoutes)
@@ -72,6 +73,7 @@ app.use('/api/invitations', invitationRoutes)
 app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/logs', logRoutes)
 app.use('/api/notifications', notificationRoutes)
+app.use('/api/search', searchRoutes)
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

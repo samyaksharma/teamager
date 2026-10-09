@@ -544,6 +544,24 @@ export const directMessagesApi = {
   }
 }
 
+// Search API calls
+export interface SearchParams {
+  q?: string
+  types?: string[]
+  from?: string
+  to?: string
+  participant?: string
+}
+
+export const searchApi = {
+  search: async (params: SearchParams) => {
+    const response = await api.get('/api/search', {
+      params: { ...params, types: params.types?.join(',') }
+    })
+    return response.data
+  }
+}
+
 // Notification-related API calls
 export const notificationsApi = {
   list: async (limit?: number) => {

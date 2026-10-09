@@ -34,6 +34,7 @@ import {
 import { useState, useEffect, useRef, useCallback } from "react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { NotificationBell } from "@/components/notification-bell"
+import { GlobalSearch } from "@/components/global-search"
 import { TeamagerLogo } from "@/components/teamager-logo"
 import { MessagesProvider } from "./messages/messagesContext"
 import { useAuth } from "@/lib/authContext"
@@ -149,9 +150,7 @@ export default function DashboardLayout({
             {/* Right: Actions and Settings */}
             <div className="flex items-center gap-1 px-0 md:px-4">
               {/* Search - Hidden on mobile */}
-              <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:flex">
-                <Search className="h-4 w-4" />
-              </Button>
+              <GlobalSearch hotkey triggerClassName="h-8 w-8 hidden sm:flex" />
 
               {/* Desktop Settings Menu - Hidden on mobile */}
               <DropdownMenu>
@@ -182,6 +181,8 @@ export default function DashboardLayout({
 
               {/* Mobile Right Section */}
               <div className="flex items-center gap-1 md:hidden">
+                <GlobalSearch triggerClassName="h-8 w-8" />
+
                 {/* Notifications */}
                 <NotificationBell />
 
