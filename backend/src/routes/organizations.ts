@@ -91,11 +91,14 @@ router.get('/:orgId', async (req, res) => {
 // Create organization - matches frontend POST /api/organizations
 router.post('/', async (req, res) => {
   try {
-    const { name, industry, size, role = 'owner', department, jobTitle } = req.body
+    // `role` is the person's job role from the signup form; it doesn't change what they can do:
+    // whoever creates a workspace owns it.
+    const { name, industry, size, department, jobTitle } = req.body
     const userId = req.user!.userId
 
-    if (!name) {
-      return res.status(400).json({ message: 'Organization name is required' })
+    const trimmedName = typeof name === 'string' ? name.trim() : ''
+    if (!trimmedName || trimmedName.length > 255) {
+      return res.status(400).json({ message: 'Organization name is required (max 255 characters)' })
     }
 
     // Verify user exists
@@ -108,46 +111,44 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
-    // Create organization
-    const newOrg = await db.insert(organizations)
-      .values({
-        name,
-        industry,
-        size
-      })
-      .returning()
+    // Organization, owner membership, default team and team lead are created together or not at all
+    const org = await db.transaction(async (tx) => {
+      const [newOrg] = await tx.insert(organizations)
+        .values({
+          name: trimmedName,
+          industry: typeof industry === 'string' ? industry.slice(0, 128) : null,
+          size: typeof size === 'string' ? size.slice(0, 64) : null
+        })
+        .returning()
 
-    // Add user as owner of the organization
-    
-    const orgMembership = await db.insert(organizationUsers)
-      .values({
-        userId,
-        organizationId: newOrg[0].id,
-        role, // 'owner', 'admin', or 'member'
-        department,
-        jobTitle,
-        invitedBy: userId // Self-invited when creating org
-      })
-      .returning()
-    
+      await tx.insert(organizationUsers)
+        .values({
+          userId,
+          organizationId: newOrg.id,
+          role: OrganizationRole.OWNER,
+          department: typeof department === 'string' ? department.slice(0, 64) : null,
+          jobTitle: typeof jobTitle === 'string' ? jobTitle.slice(0, 100) : null,
+          invitedBy: userId // Self-invited when creating org
+        })
 
-    // Create default team for the organization
-    const newTeam = await db.insert(teams)
-      .values({
-        name: `${name} Team`,
-        organizationId: newOrg[0].id
-      })
-      .returning()
+      const [newTeam] = await tx.insert(teams)
+        .values({
+          name: `${trimmedName} Team`,
+          organizationId: newOrg.id
+        })
+        .returning()
 
-    // Add user as lead of the default team
-    await db.insert(teamUsers)
-      .values({
-        userId,
-        teamId: newTeam[0].id,
-        role: TeamRole.LEAD // Team lead role
-      })
+      await tx.insert(teamUsers)
+        .values({
+          userId,
+          teamId: newTeam.id,
+          role: TeamRole.LEAD // Team lead role
+        })
 
-    res.status(201).json(newOrg[0])
+      return newOrg
+    })
+
+    res.status(201).json(org)
   } catch (error) {
     console.error('Create organization error:', error)
     res.status(500).json({ message: 'Failed to create organization' })

@@ -43,15 +43,16 @@ export default function SignupPage() {
   const router = useRouter()
   const { user, isLoading: authLoading } = useAuth()
 
-  // Redirect authenticated users to dashboard
-  useEffect(() => {
-    if (!authLoading && user) {
-      router.push('/dashboard')
-    }
-  }, [user, authLoading, router])
-
   // Track the current stage of the signup process
   const [currentStage, setCurrentStage] = useState<SignupStage>("organization")
+
+  // Redirect already-signed-in visitors to the dashboard. Not during the final step: it signs the new
+  // account in itself and finishes creating the workspace before offering the dashboard.
+  useEffect(() => {
+    if (!authLoading && user && currentStage !== "success") {
+      router.push('/dashboard')
+    }
+  }, [user, authLoading, router, currentStage])
 
   // Initialize the signup data
   const [signupData, setSignupData] = useState<SignupData>({
@@ -155,8 +156,9 @@ export default function SignupPage() {
     )
   }
 
-  // Don't render signup form if user is already authenticated
-  if (user) {
+  // Don't render the form for visitors who are already signed in (they're redirected), except on the final
+  // step, which signs the new account in itself and keeps showing progress
+  if (user && currentStage !== "success") {
     return null // Will redirect via useEffect
   }
 

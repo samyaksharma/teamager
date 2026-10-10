@@ -92,16 +92,14 @@ router.post('/register', async (req, res) => {
         expiresAt
       })
 
-    // Send verification email
-    try {
-      await sendVerificationEmail(email, token)
-    } catch (emailError) {
+    // Verification is optional: the account works immediately. Send the email in the background so a slow or
+    // unconfigured mail server can never delay or fail signup.
+    sendVerificationEmail(email, token).catch((emailError) => {
       console.error('Failed to send verification email:', emailError)
-      // Don't fail registration if email fails
-    }
+    })
 
     res.status(201).json({
-      message: 'User registered successfully. Please check your email to verify your account.',
+      message: 'User registered successfully. You can sign in right away; verifying your email is optional.',
       user: newUser[0]
     })
   } catch (error) {

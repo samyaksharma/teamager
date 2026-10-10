@@ -37,7 +37,11 @@ api.interceptors.response.use(
                              error.config?.url?.includes('/api/verification/register') ||
                              error.config?.url?.includes('/api/auth/login')
       
-      if (!isAuthEndpoint && !window.location.pathname.includes('/login')) {
+      // Public pages are meant for visitors who aren't signed in (the auth provider probes the session on
+      // every page, so a 401 there is expected and must not bounce them to the login screen)
+      const isPublicPage = /^\/(login|signup|forgot-password|reset-password|verify-email|invite\/.+)?\/?$/.test(window.location.pathname)
+
+      if (!isAuthEndpoint && !isPublicPage) {
         window.location.href = '/login'
       }
     }
