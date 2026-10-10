@@ -3,7 +3,7 @@ import { eq, and, or, isNull, sql } from 'drizzle-orm'
 import { db, documents, users, teams, teamUsers, organizationUsers, documentRoles } from '../db'
 import { notify } from '../utils/inAppNotifications'
 import { verifyToken } from '../middleware/auth'
-import { getDocumentPermissions, checkDocumentAccess, assignDocumentRole, removeDocumentRole } from '../utils/permissions'
+import { getDocumentPermissions, checkDocumentAccess, viewableDocumentsCondition, assignDocumentRole, removeDocumentRole } from '../utils/permissions'
 import { DocumentRole } from '../types/enums'
 
 const router = express.Router()
@@ -12,6 +12,21 @@ const router = express.Router()
 router.use(verifyToken)
 
 // Get documents - matches frontend GET /api/documents and /api/documents?teamId={teamId}
+// API role names <-> stored DocumentRole values
+const ROLE_BY_NAME: Record<string, DocumentRole> = {
+  viewer: DocumentRole.VIEWER,
+  commenter: DocumentRole.COMMENTER,
+  editor: DocumentRole.EDITOR,
+  admin: DocumentRole.ADMIN
+}
+const ROLE_NAMES: Record<number, string> = Object.fromEntries(Object.entries(ROLE_BY_NAME).map(([name, value]) => [value, name]))
+
+// Responses expose the effective role by name ('owner', 'viewer', ...), not its stored number
+const withRoleName = <T extends { effectiveRole: DocumentRole | 'owner' | null }>(permissions: T) => ({
+  ...permissions,
+  effectiveRole: typeof permissions.effectiveRole === 'number' ? ROLE_NAMES[permissions.effectiveRole] : permissions.effectiveRole
+})
+
 router.get('/', async (req, res) => {
   try {
     const { teamId } = req.query
@@ -25,33 +40,10 @@ router.get('/', async (req, res) => {
 
     const teamIds = userTeams.map(ut => ut.teamId)
 
-    // Build conditions first
-    const conditions: any[] = []
-
+    // Only documents the user can view (same rules as the single-document permission check)
+    const conditions: any[] = [viewableDocumentsCondition(userId, teamIds)]
     if (teamId) {
-      // Filter by specific team
-      conditions.push(
-        and(
-          eq(documents.teamId, teamId as string),
-          or(
-            eq(documents.createdBy, userId), // Created by user
-            teamIds.length > 0 ? 
-              eq(documents.teamId, teamId as string) : // User is member of team
-              sql`1=0` // No access
-          )
-        )
-      )
-    } else {
-      // Get all accessible documents
-      conditions.push(
-        or(
-          eq(documents.createdBy, userId), // Created by user
-          teamIds.length > 0 ? 
-            sql`${documents.teamId} IN ${teamIds}` : // From user's teams
-            sql`1=0`, // No teams, no access
-          isNull(documents.teamId) // Personal documents
-        )
-      )
+      conditions.push(eq(documents.teamId, teamId as string))
     }
 
     const docs = await db.select({
@@ -78,7 +70,7 @@ router.get('/', async (req, res) => {
         const permissions = await getDocumentPermissions(doc.id, userId)
         return {
           ...doc,
-          permissions
+          permissions: withRoleName(permissions)
         }
       })
     )
@@ -131,7 +123,7 @@ router.get('/:docId', async (req, res) => {
     
     res.json({
       ...document,
-      permissions
+      permissions: withRoleName(permissions)
     })
   } catch (error) {
     console.error('Get document error:', error)
@@ -378,7 +370,7 @@ router.get('/:docId/permissions', async (req, res) => {
 
     res.json({
       owner: document[0] || null,
-      roles: roles || []
+      roles: roles.map(r => ({ ...r, role: ROLE_NAMES[r.role] ?? r.role }))
     })
   } catch (error) {
     console.error('Get document permissions error:', error)
@@ -401,7 +393,7 @@ router.post('/:docId/permissions', async (req, res) => {
       return res.status(400).json({ message: 'Invalid role. Must be viewer, commenter, editor, or admin' })
     }
 
-    const result = await assignDocumentRole(docId, assignerId, targetUserId, targetTeamId, role)
+    const result = await assignDocumentRole(docId, assignerId, ROLE_BY_NAME[role], targetUserId, targetTeamId)
     
     if (!result.success) {
       return res.status(403).json({ message: result.error })

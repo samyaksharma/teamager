@@ -1,4 +1,4 @@
-import { eq, and, or, inArray } from 'drizzle-orm'
+import { eq, and, or, inArray, sql, SQL } from 'drizzle-orm'
 import { db, documents, documentRoles, teamUsers } from '../db'
 import { DocumentRole } from '../types/enums'
 
@@ -91,7 +91,7 @@ export async function getDocumentPermissions(
   }
 
   // If no direct permission, check team-based permissions
-  if (!effectiveRole) {
+  if (effectiveRole === null) {
     // Get user's teams
     const userTeams = await db.select({ teamId: teamUsers.teamId })
       .from(teamUsers)
@@ -115,7 +115,7 @@ export async function getDocumentPermissions(
       let highestTeamRole: DocumentRole | null = null
       for (const teamRole of teamRoles) {
         const role = teamRole.role as DocumentRole
-        if (!highestTeamRole || ROLE_HIERARCHY[role] > ROLE_HIERARCHY[highestTeamRole]) {
+        if (highestTeamRole === null || ROLE_HIERARCHY[role] > ROLE_HIERARCHY[highestTeamRole]) {
           highestTeamRole = role
         }
       }
@@ -125,7 +125,7 @@ export async function getDocumentPermissions(
   }
 
   // If still no role and document has a team, check if user is team member (fallback team access)
-  if (!effectiveRole && doc.teamId) {
+  if (effectiveRole === null && doc.teamId) {
     const isTeamMember = await db.select()
       .from(teamUsers)
       .where(and(
@@ -139,8 +139,8 @@ export async function getDocumentPermissions(
     }
   }
 
-  // No permissions found
-  if (!effectiveRole) {
+  // No permissions found (note: DocumentRole.VIEWER is 0, so test for null explicitly)
+  if (effectiveRole === null) {
     return {
       canView: false,
       canComment: false,
@@ -185,7 +185,7 @@ export async function checkDocumentAccess(
     return true
   }
   
-  if (!permissions.effectiveRole) {
+  if (permissions.effectiveRole === null) {
     return false
   }
   
@@ -309,4 +309,21 @@ export async function removeDocumentRole(
     console.error('Error removing document role:', error)
     return { success: false, error: 'Failed to remove role' }
   }
+}
+
+/**
+ * SQL condition matching the documents a user can view. Mirrors getDocumentPermissions:
+ * owner, a direct role, a role granted to one of the user's teams, or membership of the document's team.
+ * Documents without a team are visible only to their owner or people they were shared with.
+ */
+export function viewableDocumentsCondition(userId: string, userTeamIds: string[]): SQL {
+  const access: SQL[] = [
+    eq(documents.ownerId, userId),
+    sql`exists (select 1 from ${documentRoles} where ${documentRoles.documentId} = ${documents.id} and ${documentRoles.userId} = ${userId})`
+  ]
+  if (userTeamIds.length > 0) {
+    access.push(inArray(documents.teamId, userTeamIds))
+    access.push(sql`exists (select 1 from ${documentRoles} where ${documentRoles.documentId} = ${documents.id} and ${inArray(documentRoles.teamId, userTeamIds)})`)
+  }
+  return or(...access)!
 }

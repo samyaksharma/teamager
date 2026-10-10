@@ -1,9 +1,10 @@
 import express from 'express'
 import { and, or, eq, desc, isNull, inArray, ilike, gte, lte, sql, SQL } from 'drizzle-orm'
 import {
-  db, documents, documentRoles, tasks, taskTeams, messages, channels, directMessages, teamUsers, users, teams
+  db, documents, tasks, taskTeams, messages, channels, directMessages, teamUsers, users, teams
 } from '../db'
 import { verifyToken } from '../middleware/auth'
+import { viewableDocumentsCondition } from '../utils/permissions'
 
 const router = express.Router()
 
@@ -59,14 +60,7 @@ router.get('/', async (req, res) => {
 
     // ---- Documents ----
     const searchDocuments = async () => {
-      const access: SQL[] = [eq(documents.createdBy, userId), eq(documents.ownerId, userId)]
-      if (myTeams.length > 0) access.push(inArray(documents.teamId, myTeams))
-      access.push(sql`exists (select 1 from ${documentRoles} where ${documentRoles.documentId} = ${documents.id} and ${documentRoles.userId} = ${userId})`)
-      if (myTeams.length > 0) {
-        access.push(sql`exists (select 1 from ${documentRoles} where ${documentRoles.documentId} = ${documents.id} and ${inArray(documentRoles.teamId, myTeams)})`)
-      }
-
-      const conditions: (SQL | undefined)[] = [isNull(documents.deletedAt), or(...access)]
+      const conditions: (SQL | undefined)[] = [isNull(documents.deletedAt), viewableDocumentsCondition(userId, myTeams)]
       if (like) conditions.push(or(ilike(documents.title, like), ilike(documents.content, like)))
       if (from) conditions.push(gte(documents.updatedAt, from))
       if (to) conditions.push(lte(documents.updatedAt, to))
