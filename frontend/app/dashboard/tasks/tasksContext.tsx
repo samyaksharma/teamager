@@ -29,6 +29,10 @@ interface Task {
     username: string
     avatarUrl?: string
   }
+  subtaskTotal?: number
+  subtaskDone?: number
+  checklistTotal?: number
+  checklistDone?: number
   creator?: {
     id: string
     name: string

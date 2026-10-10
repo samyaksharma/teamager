@@ -228,8 +228,24 @@ export const tasks = pgTable("task", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   createdBy: uuid("created_by").references(() => users.id),
   deletedAt: timestamp("deleted_at"),
-  deletedBy: uuid("deleted_by").references(() => users.id)
+  deletedBy: uuid("deleted_by").references(() => users.id),
+  // Sub-item: points at the (top-level) task this one belongs to
+  parentId: uuid("parent_id")
 })
+
+// Task checklist items
+export const taskChecklistItems = pgTable("task_checklist_item", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  content: varchar("content", { length: 500 }).notNull(),
+  done: boolean("done").default(false).notNull(),
+  position: integer("position").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (table) => ({
+  taskPositionIdx: index("task_checklist_item_task_idx").on(table.taskId, table.position)
+}))
 
 // Task teams junction table
 export const taskTeams = pgTable("task_team", {

@@ -1,6 +1,6 @@
 import express from 'express'
-import { eq, and, or, isNull, sql } from 'drizzle-orm'
-import { db, tasks, users, teams, teamUsers, taskTeams, organizations } from '../db'
+import { eq, and, or, isNull, inArray, sql } from 'drizzle-orm'
+import { db, tasks, users, teams, teamUsers, taskTeams, taskChecklistItems, organizations } from '../db'
 import { notify } from '../utils/inAppNotifications'
 import { verifyToken } from '../middleware/auth'
 import { TaskStatus, TaskPriority, TaskType } from '../types/enums'
@@ -58,6 +58,9 @@ router.get('/', async (req, res) => {
         eq(tasks.assignedTo, userId)
       )
     )
+
+    // Sub-items are shown inside their parent task, not as top-level tasks
+    conditions.push(isNull(tasks.parentId))
 
     // Apply filters
     if (teamId) {
@@ -128,11 +131,34 @@ router.get('/', async (req, res) => {
         .where(sql`${users.id} IN ${userIds}`)
     }
 
+    // Progress of sub-items and checklists, shown on task cards
+    const taskIds = tasksData.map(t => t.id)
+    const [subtaskCounts, checklistCounts] = taskIds.length === 0 ? [[], []] : await Promise.all([
+      db.select({
+        id: tasks.parentId,
+        total: sql<number>`count(*)::int`,
+        done: sql<number>`count(*) filter (where ${tasks.status} = 4)::int`
+      }).from(tasks).where(inArray(tasks.parentId, taskIds)).groupBy(tasks.parentId),
+      db.select({
+        id: taskChecklistItems.taskId,
+        total: sql<number>`count(*)::int`,
+        done: sql<number>`count(*) filter (where ${taskChecklistItems.done})::int`
+      }).from(taskChecklistItems).where(inArray(taskChecklistItems.taskId, taskIds)).groupBy(taskChecklistItems.taskId)
+    ])
+
     // Merge assignee data
-    const tasksWithAssignees = tasksData.map(task => ({
-      ...task,
-      assignee: task.assignedTo ? assignees.find(a => a.id === task.assignedTo) : null
-    }))
+    const tasksWithAssignees = tasksData.map(task => {
+      const subs = subtaskCounts.find(c => c.id === task.id)
+      const checks = checklistCounts.find(c => c.id === task.id)
+      return {
+        ...task,
+        assignee: task.assignedTo ? assignees.find(a => a.id === task.assignedTo) : null,
+        subtaskTotal: subs?.total ?? 0,
+        subtaskDone: subs?.done ?? 0,
+        checklistTotal: checks?.total ?? 0,
+        checklistDone: checks?.done ?? 0
+      }
+    })
 
     res.json(tasksWithAssignees)
   } catch (error) {

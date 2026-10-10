@@ -407,6 +407,19 @@ export const tasksApi = {
   }
 }
 
+// Task checklist and sub-item API calls
+export const taskItemsApi = {
+  getChecklist: async (taskId: string) => (await api.get(`/api/tasks/${taskId}/checklist`)).data,
+  addChecklistItem: async (taskId: string, content: string) => (await api.post(`/api/tasks/${taskId}/checklist`, { content })).data,
+  updateChecklistItem: async (taskId: string, itemId: string, data: { done?: boolean, content?: string }) =>
+    (await api.put(`/api/tasks/${taskId}/checklist/${itemId}`, data)).data,
+  deleteChecklistItem: async (taskId: string, itemId: string) => (await api.delete(`/api/tasks/${taskId}/checklist/${itemId}`)).data,
+
+  getSubtasks: async (taskId: string) => (await api.get(`/api/tasks/${taskId}/subtasks`)).data,
+  addSubtask: async (taskId: string, data: { title: string, assignedTo?: string | null }) =>
+    (await api.post(`/api/tasks/${taskId}/subtasks`, data)).data
+}
+
 // Channel-related API calls
 export const channelsApi = {
   getAllChannels: async (teamId: string) => {

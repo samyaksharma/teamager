@@ -60,6 +60,7 @@ import { useState, useEffect } from "react"
 import { TasksProvider, useTasks } from "./tasksContext"
 import AuthContext, { useAuth } from "@/lib/authContext"
 import { teamApi } from "@/lib/api"
+import { TaskItems, TaskProgress } from "@/components/task-items"
 
 // Edit Task Form Component
 function EditTaskForm({ task, teams, organizations, users, onSave, onCancel }: {
@@ -201,6 +202,8 @@ function TasksContent() {
   const [editingTask, setEditingTask] = useState<any>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [teamMembers, setTeamMembers] = useState<any[]>([])
+  // The current user is usually also in teamMembers; keep each person once so list keys stay unique
+  const assignableUsers = [user, ...teamMembers].filter((u, i, all) => u && all.findIndex((x) => x?.id === u.id) === i)
   const [isCreatingTask, setIsCreatingTask] = useState(false)
   const [keepDialogOpen, setKeepDialogOpen] = useState(false)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
@@ -739,9 +742,16 @@ function TasksContent() {
                     task={editingTask}
                     teams={teams}
                     organizations={organizations}
-                    users={[user, ...teamMembers].filter(Boolean)}
+                    users={assignableUsers}
                     onSave={handleUpdateTask}
                     onCancel={() => setIsEditDialogOpen(false)}
+                  />
+                )}
+                {editingTask && (
+                  <TaskItems
+                    taskId={editingTask.id}
+                    users={assignableUsers}
+                    onChanged={refreshTasks}
                   />
                 )}
               </DialogContent>
@@ -900,6 +910,7 @@ function TasksContent() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <h4 className="font-medium flex-1">{task.title}</h4>
+                                    <TaskProgress task={task} />
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -1135,6 +1146,7 @@ function TasksContent() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <h4 className="font-medium flex-1">{task.title}</h4>
+                                    <TaskProgress task={task} />
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -1357,6 +1369,7 @@ function TasksContent() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <h4 className="font-medium flex-1">{task.title}</h4>
+                                    <TaskProgress task={task} />
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -1540,6 +1553,7 @@ function TasksContent() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <h4 className="font-medium flex-1">{task.title}</h4>
+                                    <TaskProgress task={task} />
                                     <Button
                                       variant="ghost"
                                       size="sm"
@@ -1723,6 +1737,7 @@ function TasksContent() {
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <h4 className="font-medium flex-1">{task.title}</h4>
+                                    <TaskProgress task={task} />
                                     <Button
                                       variant="ghost"
                                       size="sm"
