@@ -23,6 +23,8 @@ interface Organization {
   industry?: string
   createdAt: string
   updatedAt: string
+  // The current user's role in this organization (OrganizationRole)
+  role?: number
 }
 
 interface Team {

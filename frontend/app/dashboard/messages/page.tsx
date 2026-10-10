@@ -30,6 +30,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useMessages, normalizeMessage, type Message } from "./messagesContext"
 import { MessageItem } from "./message-item"
+import { MentionInput } from "@/components/mention-input"
 import { ThreadPanel } from "./thread-panel"
 import { channelsApi } from "@/lib/api"
 import { formatDistanceToNow } from "date-fns"
@@ -452,9 +453,10 @@ export default function MessagesPage() {
                 </div>
                 <Separator />
                 <div className="flex items-center p-3">
-                  <Input
+                  <MentionInput
                     value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
+                    onChange={setMessageInput}
+                    people={directContacts}
                     placeholder={`Message #${activeChannel.name}`}
                     className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                   />

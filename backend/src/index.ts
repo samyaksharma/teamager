@@ -63,6 +63,7 @@ import documentVersionRoutes from './routes/document-versions'
 import documentCommentRoutes from './routes/document-comments'
 import calendarRoutes from './routes/calendar'
 import taskViewRoutes from './routes/task-views'
+import taskReferenceRoutes from './routes/task-references'
 
 // API Routes - matching frontend expectations
 app.use('/api/auth', authRoutes)
@@ -77,6 +78,7 @@ app.use('/api/documents', documentVersionRoutes)
 app.use('/api/documents', documentCommentRoutes)
 app.use('/api/calendar', calendarRoutes)
 app.use('/api/task-views', taskViewRoutes)
+app.use('/api', taskReferenceRoutes)
 app.use('/api/channels', channelRoutes)
 app.use('/api/direct-messages', directMessageRoutes)
 app.use('/api/invitations', invitationRoutes)

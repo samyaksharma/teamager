@@ -35,6 +35,8 @@ export interface Message {
   reactions?: Reaction[]
   replyCount?: number
   taskId?: string | null
+  mentions?: { userId: string; username: string; name: string }[]
+  linkedTasks?: { id: string; title: string }[]
 }
 
 // Convert an API message row into the shape the UI uses
@@ -51,7 +53,9 @@ export const normalizeMessage = (raw: any): Message => ({
   pinnedAt: raw.pinnedAt ?? null,
   reactions: raw.reactions ?? [],
   replyCount: raw.replyCount ?? 0,
-  taskId: raw.taskId ?? null
+  taskId: raw.taskId ?? null,
+  mentions: raw.mentions ?? [],
+  linkedTasks: raw.linkedTasks ?? []
 })
 
 interface DirectMessage {

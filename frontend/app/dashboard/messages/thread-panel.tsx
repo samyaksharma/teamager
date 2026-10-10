@@ -7,9 +7,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Send, X } from "lucide-react"
 import { useMessages } from "./messagesContext"
 import { MessageItem } from "./message-item"
+import { MentionInput } from "@/components/mention-input"
 
 export function ThreadPanel() {
-  const { threadParent, threadReplies, closeThread, sendThreadReply } = useMessages()
+  const { threadParent, threadReplies, closeThread, sendThreadReply, directContacts } = useMessages()
   const [reply, setReply] = useState("")
 
   if (!threadParent) return null
@@ -41,7 +42,7 @@ export function ThreadPanel() {
         </div>
       </ScrollArea>
       <form onSubmit={handleSubmit} className="flex items-center border-t p-3">
-        <Input value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Reply..." />
+        <MentionInput value={reply} onChange={setReply} people={directContacts} placeholder="Reply..." />
         <Button type="submit" size="icon" className="ml-2 rounded-full" aria-label="Send reply">
           <Send className="h-4 w-4" />
         </Button>

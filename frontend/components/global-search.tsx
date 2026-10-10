@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
-import { Calendar, CheckSquare, FilePlus, FileText, Hash, Home, LogOut, MessageSquare, Moon, PlusSquare, Search, Users } from "lucide-react"
+import { Calendar, CheckSquare, FilePlus, FileText, Hash, Home, LogOut, MessageSquare, Moon, PlusSquare, Search, Settings, Users } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
@@ -147,6 +147,7 @@ export function GlobalSearch({ hotkey = false, triggerClassName }: GlobalSearchP
       { id: "go-calendar", label: "Go to Calendar", keywords: "schedule due dates", icon: Calendar, run: () => router.push("/dashboard/calendar") },
       { id: "go-documents", label: "Go to Documents", keywords: "pages docs notes", icon: FileText, run: () => router.push("/dashboard/documents") },
       { id: "go-messages", label: "Go to Messages", keywords: "chat channels dm", icon: MessageSquare, run: () => router.push("/dashboard/messages") },
+      { id: "go-settings", label: "Go to Settings", keywords: "workspace profile preferences", icon: Settings, run: () => router.push("/dashboard/settings") },
       { id: "go-members", label: "Go to Members", keywords: "people team roles", icon: Users, run: () => router.push("/dashboard/members") },
       {
         id: "new-task", label: "Create task", keywords: "new add issue", icon: PlusSquare,

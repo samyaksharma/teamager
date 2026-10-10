@@ -2,6 +2,7 @@
 
 import { DocumentHistory } from "@/components/document-history"
 import { DocumentComments } from "@/components/document-comments"
+import { DocumentTasks } from "@/components/document-tasks"
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
@@ -469,6 +470,7 @@ function EditorBody({
           canAdmin={canAdmin}
           flush={handleManualSave}
         />
+        <DocumentTasks documentId={documentId} canLink={canEdit || canComment} />
         <DocumentHistory
           documentId={documentId}
           canEdit={canEdit}

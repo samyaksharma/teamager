@@ -3,7 +3,7 @@
 import type React from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Calendar, CheckSquare, FileText, Home, LogOut, Menu, MessageSquare, Settings, Users, UserPlus, X, MoreHorizontal, Bell, Search, Bold, Italic, Underline, Type, List, ListOrdered, Quote, Code } from "lucide-react"
 import {
   DropdownMenu,
@@ -56,6 +56,8 @@ export default function DashboardLayout({
   const { currentOrganization, logout } = useAuth()
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  const router = useRouter()
 
   const handleLogout = async () => {
     await logout()
@@ -160,11 +162,11 @@ export default function DashboardLayout({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push("/dashboard/members")}>
                     <UserPlus className="mr-2 h-4 w-4" />
                     <span>Invite Members</span>
                   </DropdownMenuItem>
@@ -219,7 +221,7 @@ export default function DashboardLayout({
                           variant="ghost"
                           size="sm"
                           className="w-full justify-start h-10"
-                          onClick={() => {/* Add settings handler */ }}
+                          onClick={() => { setIsMobileMenuOpen(false); router.push("/dashboard/settings") }}
                         >
                           <Settings className="h-4 w-4 mr-3" />
                           Settings
@@ -228,7 +230,7 @@ export default function DashboardLayout({
                           variant="ghost"
                           size="sm"
                           className="w-full justify-start h-10"
-                          onClick={() => {/* Add invite handler */ }}
+                          onClick={() => { setIsMobileMenuOpen(false); router.push("/dashboard/members") }}
                         >
                           <UserPlus className="h-4 w-4 mr-3" />
                           Invite Members

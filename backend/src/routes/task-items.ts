@@ -4,34 +4,15 @@ import { db, tasks, taskTeams, taskChecklistItems, taskLinks, teamUsers, users }
 import { parseLink } from '../utils/linkParser'
 import { verifyToken } from '../middleware/auth'
 import { notify } from '../utils/inAppNotifications'
-import { writableTeamIds } from '../utils/teamAccess'
+import { loadTaskForUser } from '../utils/taskAccess'
 
 // Checklists and sub-items for a task. Mounted on /api/tasks next to the main task routes.
 const router = express.Router()
 
 router.use(verifyToken)
 
-// Same access rule as the task routes: creator, assignee, or a member of one of the task's teams
-// `write` excludes teams where the user is a read-only Viewer
-async function loadAccessibleTask(taskId: string, userId: string, write = false) {
-  const found = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1)
-  if (found.length === 0) return { status: 404, message: 'Task not found' } as const
-  const task = found[0]
-
-  let hasAccess = task.createdBy === userId || task.assignedTo === userId
-  if (!hasAccess) {
-    const myTeams = write
-      ? await writableTeamIds(userId)
-      : (await db.select({ teamId: teamUsers.teamId }).from(teamUsers).where(eq(teamUsers.userId, userId))).map(t => t.teamId)
-    if (myTeams.length > 0) {
-      const link = await db.select().from(taskTeams)
-        .where(and(eq(taskTeams.taskId, taskId), inArray(taskTeams.teamId, myTeams))).limit(1)
-      hasAccess = link.length > 0
-    }
-  }
-  if (!hasAccess) return { status: 403, message: 'Access denied to this task' } as const
-  return { task } as const
-}
+// Same access rule as the task routes (see utils/taskAccess)
+const loadAccessibleTask = loadTaskForUser
 
 // ---- Checklist ----
 

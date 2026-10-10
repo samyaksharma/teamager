@@ -413,6 +413,27 @@ export const tasksApi = {
   }
 }
 
+// Links between tasks and documents/messages
+export interface TaskReference {
+  id: string
+  kind: 'document' | 'message'
+  targetId: string
+  title?: string            // documents
+  content?: string          // messages
+  channelId?: string
+  channelName?: string
+  authorName?: string | null
+}
+
+export const taskReferencesApi = {
+  list: async (taskId: string): Promise<TaskReference[]> => (await api.get(`/api/tasks/${taskId}/references`)).data,
+  add: async (taskId: string, kind: 'document' | 'message', targetId: string) =>
+    (await api.post(`/api/tasks/${taskId}/references`, { kind, targetId })).data,
+  remove: async (taskId: string, refId: string) => (await api.delete(`/api/tasks/${taskId}/references/${refId}`)).data,
+  forDocument: async (documentId: string): Promise<{ refId: string, id: string, title: string, status: number }[]> =>
+    (await api.get(`/api/documents/${documentId}/tasks`)).data
+}
+
 // Saved task views API calls
 export interface TaskViewFilters {
   status: string

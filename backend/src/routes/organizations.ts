@@ -32,7 +32,9 @@ router.get('/', async (req, res) => {
       size: organizations.size,
       industry: organizations.industry,
       createdAt: organizations.createdAt,
-      updatedAt: organizations.updatedAt
+      updatedAt: organizations.updatedAt,
+      // The current user's role in this organization (OrganizationRole)
+      role: organizationUsers.role
     })
       .from(organizations)
       .innerJoin(organizationUsers, eq(organizations.id, organizationUsers.organizationId))
@@ -175,9 +177,25 @@ router.put('/:orgId', async (req, res) => {
 
     // Build update object
     const updateData: any = {}
-    if (name !== undefined) updateData.name = name
-    if (industry !== undefined) updateData.industry = industry
-    if (size !== undefined) updateData.size = size
+    if (name !== undefined) {
+      const trimmed = typeof name === 'string' ? name.trim() : ''
+      if (!trimmed || trimmed.length > 255) {
+        return res.status(400).json({ message: 'Organization name is required (max 255 characters)' })
+      }
+      updateData.name = trimmed
+    }
+    if (industry !== undefined) {
+      if (industry !== null && (typeof industry !== 'string' || industry.length > 128)) {
+        return res.status(400).json({ message: 'Industry must be at most 128 characters' })
+      }
+      updateData.industry = industry ? industry.trim() : null
+    }
+    if (size !== undefined) {
+      if (size !== null && (typeof size !== 'string' || size.length > 64)) {
+        return res.status(400).json({ message: 'Size must be at most 64 characters' })
+      }
+      updateData.size = size ? size.trim() : null
+    }
     updateData.updatedAt = new Date()
 
     if (Object.keys(updateData).length === 1) { // Only updatedAt

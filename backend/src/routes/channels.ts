@@ -1,10 +1,12 @@
 import express from 'express'
 import { eq, and, desc, asc, isNull, inArray, ilike, sql } from 'drizzle-orm'
-import { db, channels, messages, messageReactions, users, teamUsers, teams, tasks, taskTeams } from '../db'
+import { db, channels, messages, messageReactions, messageMentions, taskReferences, users, teamUsers, teams, tasks, taskTeams } from '../db'
 import { verifyToken } from '../middleware/auth'
 import { TeamRole } from '../types/enums'
 import { notify } from '../utils/inAppNotifications'
 import { VIEWER_MESSAGE } from '../utils/teamAccess'
+import { extractMentionUsernames } from '../utils/mentions'
+import { visibleTaskIds } from '../utils/taskAccess'
 
 const router = express.Router()
 
@@ -327,19 +329,29 @@ async function getAccessibleChannel(channelId: string, userId: string, write = f
   return { channel: channel[0] } as const
 }
 
-// Attach reactions ([{ emoji, count, userIds }]) and replyCount to messages
-async function withReactionsAndReplies<T extends { id: string }>(rows: T[]) {
+// Attach reactions ([{ emoji, count, userIds }]), replyCount, mentions and the viewer's linked tasks to messages
+async function withReactionsAndReplies<T extends { id: string }>(rows: T[], viewerId?: string) {
   if (rows.length === 0) return []
   const ids = rows.map(r => r.id)
-  const [reactionRows, replyRows] = await Promise.all([
+  const [reactionRows, replyRows, mentionRows, referenceRows] = await Promise.all([
     db.select({ messageId: messageReactions.messageId, emoji: messageReactions.emoji, userId: messageReactions.userId })
       .from(messageReactions)
       .where(inArray(messageReactions.messageId, ids)),
     db.select({ parentId: messages.parentId, count: sql<number>`count(*)::int` })
       .from(messages)
       .where(inArray(messages.parentId, ids))
-      .groupBy(messages.parentId)
+      .groupBy(messages.parentId),
+    db.select({ messageId: messageMentions.messageId, userId: users.id, username: users.username, name: users.name })
+      .from(messageMentions)
+      .innerJoin(users, eq(messageMentions.userId, users.id))
+      .where(inArray(messageMentions.messageId, ids)),
+    db.select({ messageId: taskReferences.targetId, taskId: tasks.id, title: tasks.title })
+      .from(taskReferences)
+      .innerJoin(tasks, eq(tasks.id, taskReferences.taskId))
+      .where(and(eq(taskReferences.kind, 'message'), inArray(taskReferences.targetId, ids), isNull(tasks.deletedAt)))
   ])
+  // Only show links to tasks the viewer is allowed to see
+  const visible = viewerId ? await visibleTaskIds(viewerId, [...new Set(referenceRows.map(r => r.taskId))]) : new Set<string>()
   return rows.map(r => {
     const byEmoji = new Map<string, string[]>()
     for (const rx of reactionRows.filter(x => x.messageId === r.id)) {
@@ -348,7 +360,11 @@ async function withReactionsAndReplies<T extends { id: string }>(rows: T[]) {
     return {
       ...r,
       reactions: [...byEmoji].map(([emoji, userIds]) => ({ emoji, count: userIds.length, userIds })),
-      replyCount: replyRows.find(x => x.parentId === r.id)?.count ?? 0
+      replyCount: replyRows.find(x => x.parentId === r.id)?.count ?? 0,
+      mentions: mentionRows.filter(m => m.messageId === r.id).map(({ userId, username, name }) => ({ userId, username, name })),
+      linkedTasks: referenceRows
+        .filter(x => x.messageId === r.id && visible.has(x.taskId))
+        .map(({ taskId, title }) => ({ id: taskId, title }))
     }
   })
 }
@@ -386,7 +402,7 @@ router.get('/:channelId/messages', async (req, res) => {
       messagesQuery = (messagesQuery as any).limit(limitNum)
     }
 
-    const channelMessages = await withReactionsAndReplies(await messagesQuery)
+    const channelMessages = await withReactionsAndReplies(await messagesQuery, userId)
 
     // Reverse to get chronological order
     res.json(channelMessages.reverse())
@@ -411,7 +427,7 @@ router.get('/:channelId/messages/:messageId/replies', async (req, res) => {
       .where(and(eq(messages.channelId, channelId), eq(messages.parentId, messageId)))
       .orderBy(asc(messages.createdAt))
 
-    res.json(await withReactionsAndReplies(replies))
+    res.json(await withReactionsAndReplies(replies, req.user!.userId))
   } catch (error) {
     console.error('Get thread replies error:', error)
     res.status(500).json({ message: 'Failed to get replies' })
@@ -495,6 +511,7 @@ router.post('/:channelId/messages/:messageId/task', async (req, res) => {
 
     await db.insert(taskTeams).values({ taskId: task.id, teamId: access.channel.teamId })
     await db.update(messages).set({ taskId: task.id }).where(eq(messages.id, messageId))
+    await db.insert(taskReferences).values({ taskId: task.id, kind: 'message', targetId: messageId, createdBy: userId }).onConflictDoNothing()
 
     res.status(201).json({ taskId: task.id, title: task.title })
   } catch (error) {
@@ -563,7 +580,27 @@ router.post('/:channelId/messages', async (req, res) => {
       })
       .returning()
 
-    if (threadParentAuthor) {
+    // @username mentions: only members of this channel's team can be mentioned
+    const mentionedNames = extractMentionUsernames(content)
+    let mentionedIds: string[] = []
+    if (mentionedNames.length > 0) {
+      const mentioned = await db.select({ id: users.id })
+        .from(users)
+        .innerJoin(teamUsers, eq(teamUsers.userId, users.id))
+        .where(and(eq(teamUsers.teamId, channelData.teamId), inArray(sql`lower(${users.username})`, mentionedNames)))
+      mentionedIds = mentioned.map(m => m.id).filter(id => id !== userId)
+      if (mentionedIds.length > 0) {
+        await db.insert(messageMentions)
+          .values(mentionedIds.map(id => ({ messageId: newMessage[0].id, userId: id })))
+          .onConflictDoNothing()
+        for (const id of mentionedIds) {
+          await notify({ userId: id, actorId: userId, module: 'messages', type: 'mention', title: `mentioned you in #${channelData.name}`, body: content.trim(), link: '/dashboard/messages' })
+        }
+      }
+    }
+
+    // The thread owner gets one notification: a mention already covers it
+    if (threadParentAuthor && !mentionedIds.includes(threadParentAuthor)) {
       await notify({ userId: threadParentAuthor, actorId: userId, module: 'messages', type: 'thread_reply', title: 'replied to your message', body: content.trim(), link: '/dashboard/messages' })
     }
 
@@ -574,7 +611,8 @@ router.post('/:channelId/messages', async (req, res) => {
       .where(eq(messages.id, newMessage[0].id))
       .limit(1)
 
-    res.status(201).json(messageWithUser[0])
+    const [created] = await withReactionsAndReplies(messageWithUser, userId)
+    res.status(201).json(created)
   } catch (error) {
     console.error('Create channel message error:', error)
     res.status(500).json({ message: 'Failed to create message' })

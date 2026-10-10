@@ -1,12 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { CheckSquare, ExternalLink, File, GitBranch, GitCommit, GitPullRequest, Link as LinkIcon, ListChecks, Plus, CircleDot, X } from "lucide-react"
+import { CheckSquare, ExternalLink, File, FileText, MessageSquare, GitBranch, GitCommit, GitPullRequest, Link as LinkIcon, ListChecks, Plus, CircleDot, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { taskItemsApi, tasksApi } from "@/lib/api"
+import { documentsApi, taskItemsApi, taskReferencesApi, tasksApi, type TaskReference } from "@/lib/api"
+import { useRouter } from "next/navigation"
+import { useMessages } from "@/app/dashboard/messages/messagesContext"
 import { TaskStatus } from "@/lib/enums"
 import { toast } from "sonner"
 
@@ -67,17 +69,24 @@ export function TaskItems({ taskId, users, onChanged }: TaskItemsProps) {
   const [newSubAssignee, setNewSubAssignee] = useState(UNASSIGNED)
   const [links, setLinks] = useState<TaskLink[]>([])
   const [newLink, setNewLink] = useState("")
+  const [references, setReferences] = useState<TaskReference[]>([])
+  const [documentChoices, setDocumentChoices] = useState<{ id: string; title: string }[]>([])
+  const [documentToLink, setDocumentToLink] = useState("")
+  const router = useRouter()
+  const { setActiveChannel } = useMessages()
 
   const load = useCallback(async () => {
     try {
-      const [items, subs, taskLinks] = await Promise.all([
+      const [items, subs, taskLinks, refs] = await Promise.all([
         taskItemsApi.getChecklist(taskId),
         taskItemsApi.getSubtasks(taskId),
         taskItemsApi.getLinks(taskId),
+        taskReferencesApi.list(taskId),
       ])
       setChecklist(items)
       setSubItems(subs)
       setLinks(taskLinks)
+      setReferences(refs)
     } catch {
       toast.error("Failed to load checklist and sub-items")
     }
@@ -161,6 +170,42 @@ export function TaskItems({ taskId, users, onChanged }: TaskItemsProps) {
     }, "Failed to remove link")
   }
 
+  // Documents available to link (loaded the first time the picker is opened)
+  const loadDocumentChoices = async () => {
+    if (documentChoices.length > 0) return
+    try {
+      const docs = await documentsApi.getAllDocuments()
+      setDocumentChoices((docs as any[]).map((d) => ({ id: d.id, title: d.title })))
+    } catch {
+      toast.error("Failed to load documents")
+    }
+  }
+
+  const linkDocument = () => {
+    if (!documentToLink) return
+    run(async () => {
+      await taskReferencesApi.add(taskId, "document", documentToLink)
+      setDocumentToLink("")
+      setReferences(await taskReferencesApi.list(taskId))
+    }, "Failed to link document")
+  }
+
+  const unlinkReference = (ref: TaskReference) => {
+    run(async () => {
+      await taskReferencesApi.remove(taskId, ref.id)
+      setReferences((prev) => prev.filter((r) => r.id !== ref.id))
+    }, "Failed to remove link")
+  }
+
+  const openReference = (ref: TaskReference) => {
+    if (ref.kind === "document") {
+      router.push(`/dashboard/documents/${ref.targetId}`)
+    } else if (ref.channelId) {
+      setActiveChannel(ref.channelId)
+      router.push("/dashboard/messages")
+    }
+  }
+
   const checkDone = checklist.filter((c) => c.done).length
   const subDone = subItems.filter((s) => s.status === TaskStatus.DONE).length
 
@@ -225,6 +270,44 @@ export function TaskItems({ taskId, users, onChanged }: TaskItemsProps) {
             <Plus className="h-4 w-4" />
           </Button>
         </form>
+      </section>
+
+      <section aria-label="Linked items">
+        <div className="mb-2 flex items-center justify-between">
+          <h4 className="flex items-center gap-2 text-sm font-medium">
+            <FileText className="h-4 w-4" /> Linked documents and messages
+          </h4>
+          {references.length > 0 && <span className="text-xs text-muted-foreground">{references.length}</span>}
+        </div>
+        <ul className="space-y-1">
+          {references.map((ref) => (
+            <li key={ref.id} className="group flex items-center gap-2">
+              {ref.kind === "document" ? <FileText className="h-4 w-4 shrink-0 text-muted-foreground" /> : <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />}
+              <button type="button" className="min-w-0 flex-1 truncate text-left text-sm hover:underline" onClick={() => openReference(ref)}>
+                {ref.kind === "document" ? ref.title : `#${ref.channelName}: ${ref.content}`}
+              </button>
+              {ref.kind === "message" && ref.authorName && <span className="text-xs text-muted-foreground">{ref.authorName}</span>}
+              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100" onClick={() => unlinkReference(ref)} aria-label={`Unlink ${ref.kind === "document" ? ref.title : "message"}`}>
+                <X className="h-3 w-3" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-2 flex gap-2">
+          <Select value={documentToLink} onValueChange={setDocumentToLink} onOpenChange={(o) => o && loadDocumentChoices()}>
+            <SelectTrigger className="h-8 text-sm" aria-label="Document to link">
+              <SelectValue placeholder="Link a document..." />
+            </SelectTrigger>
+            <SelectContent>
+              {documentChoices.length === 0 && <div className="p-2 text-sm text-muted-foreground">No documents</div>}
+              {documentChoices.map((d) => <SelectItem key={d.id} value={d.id}>{d.title}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Button type="button" size="sm" variant="outline" className="h-8" disabled={!documentToLink} onClick={linkDocument} aria-label="Link document">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">To link a message, use "Link task" on the message in a channel.</p>
       </section>
 
       <section aria-label="Links">

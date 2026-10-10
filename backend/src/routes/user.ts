@@ -1,6 +1,6 @@
 import express from 'express'
 import bcrypt from 'bcrypt'
-import { eq, and, desc, ne, or, ilike } from 'drizzle-orm'
+import { eq, and, desc, ne, or, ilike, sql } from 'drizzle-orm'
 import { db, users, refreshTokens, verificationTokens } from '../db'
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt'
 import { verifyToken } from '../middleware/auth'
@@ -175,34 +175,46 @@ router.put('/me', verifyToken, async (req, res) => {
 
     // Build update object with only provided fields
     const updateData: any = {}
-    if (name !== undefined) updateData.name = name
-    if (username !== undefined) updateData.username = username
-    if (email !== undefined) updateData.email = email
+    if (name !== undefined) {
+      const trimmed = typeof name === 'string' ? name.trim() : ''
+      if (!trimmed || trimmed.length > 120) {
+        return res.status(400).json({ message: 'Name is required (max 120 characters)' })
+      }
+      updateData.name = trimmed
+    }
+    if (username !== undefined) {
+      const trimmed = typeof username === 'string' ? username.trim() : ''
+      if (!/^[A-Za-z0-9_]+(?:[.-][A-Za-z0-9_]+)*$/.test(trimmed) || trimmed.length > 64) {
+        return res.status(400).json({ message: 'Username may contain letters, numbers, underscores, dots and dashes (max 64)' })
+      }
+      updateData.username = trimmed
+    }
+    if (email !== undefined) {
+      const trimmed = typeof email === 'string' ? email.trim() : ''
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(trimmed) || trimmed.length > 255) {
+        return res.status(400).json({ message: 'Enter a valid email address' })
+      }
+      updateData.email = trimmed
+    }
     if (avatarUrl !== undefined) updateData.avatarUrl = avatarUrl
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ message: 'No update data provided' })
     }
 
-    // Check for duplicate username/email if being updated
-    if (username) {
-      const existingUsername = await db.select()
-        .from(users)
-        .where(and(eq(users.username, username), eq(users.id, userId)))
-        .limit(1)
-      
-      if (existingUsername.length > 0 && existingUsername[0].id !== userId) {
+    // Username and email must not belong to anyone else
+    if (updateData.username) {
+      const taken = await db.select({ id: users.id }).from(users)
+        .where(and(sql`lower(${users.username}) = ${updateData.username.toLowerCase()}`, ne(users.id, userId))).limit(1)
+      if (taken.length > 0) {
         return res.status(400).json({ message: 'Username already taken' })
       }
     }
 
-    if (email) {
-      const existingEmail = await db.select()
-        .from(users)
-        .where(and(eq(users.email, email), eq(users.id, userId)))
-        .limit(1)
-      
-      if (existingEmail.length > 0 && existingEmail[0].id !== userId) {
+    if (updateData.email) {
+      const taken = await db.select({ id: users.id }).from(users)
+        .where(and(sql`lower(${users.email}) = ${updateData.email.toLowerCase()}`, ne(users.id, userId))).limit(1)
+      if (taken.length > 0) {
         return res.status(400).json({ message: 'Email already in use' })
       }
     }

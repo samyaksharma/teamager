@@ -421,3 +421,35 @@ export const taskSavedViews = pgTable("task_saved_view", {
 }, (table) => ({
   userNameUnique: unique().on(table.userId, table.name)
 }))
+
+
+// People mentioned (@username) in a channel message
+export const messageMentions = pgTable("message_mention", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  messageId: uuid("message_id")
+    .notNull()
+    .references(() => messages.id, { onDelete: "cascade" }),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (table) => ({
+  mentionUnique: unique().on(table.messageId, table.userId)
+}))
+
+// Links from a task to a document or a channel message
+export const taskReferences = pgTable("task_reference", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  // 'document' | 'message'
+  kind: varchar("kind", { length: 16 }).notNull(),
+  // Document or message id. Not a foreign key (it points at one of two tables), so unresolvable rows are skipped on read.
+  targetId: uuid("target_id").notNull(),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (table) => ({
+  referenceUnique: unique().on(table.taskId, table.kind, table.targetId),
+  targetIdx: index("task_reference_target_idx").on(table.kind, table.targetId)
+}))

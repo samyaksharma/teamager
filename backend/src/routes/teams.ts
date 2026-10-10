@@ -148,8 +148,12 @@ router.post('/', async (req, res) => {
 router.put('/:teamId', async (req, res) => {
   try {
     const { teamId } = req.params
-    const { name } = req.body
+    const name = typeof req.body.name === 'string' ? req.body.name.trim() : ''
     const userId = req.user!.userId
+
+    if (!name || name.length > 255) {
+      return res.status(400).json({ message: 'Team name is required (max 255 characters)' })
+    }
 
     // Check if user is lead of the team
     const teamMembership = await db.select()
