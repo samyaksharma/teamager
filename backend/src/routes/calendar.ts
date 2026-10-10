@@ -11,8 +11,12 @@ const router = express.Router()
 
 const newToken = () => crypto.randomBytes(24).toString('hex')
 
-const feedUrl = (req: express.Request, token: string) =>
-  `${req.protocol}://${req.get('host')}/api/calendar/feed/${token}.ics`
+// The public address the calendar app should use. Behind a trusted proxy the original host arrives in
+// X-Forwarded-Host (the Host header may have been rewritten to an internal name).
+const feedUrl = (req: express.Request, token: string) => {
+  const forwardedHost = req.app.get('trust proxy') ? req.get('x-forwarded-host')?.split(',')[0].trim() : undefined
+  return `${req.protocol}://${forwardedHost || req.get('host')}/api/calendar/feed/${token}.ics`
+}
 
 // ---- iCalendar helpers (RFC 5545) ----
 const escapeText = (text: string) =>

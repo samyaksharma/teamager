@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
+import { cookieOptions } from '../utils/cookies'
 import jwt from 'jsonwebtoken'
 import { db, refreshTokens } from '../db'
 import { eq, and, gt } from 'drizzle-orm'
@@ -74,12 +75,7 @@ const attemptTokenRefresh = async (
     })
 
     // Set new access token in cookie with same settings as login
-    const accessCookieSettings = {
-      httpOnly: true,
-      secure: false, // HTTP for localhost development
-      sameSite: 'lax' as const,
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days (matches refresh token expiry)
-    }
+    const accessCookieSettings = cookieOptions(7 * 24 * 60 * 60 * 1000) // 7 days (matches refresh token expiry)
     
     res.cookie('accessToken', newAccessToken, accessCookieSettings)
     

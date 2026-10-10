@@ -3,6 +3,7 @@ import { IncomingMessage } from 'http'
 import { Server as HttpServer } from 'http'
 import jwt from 'jsonwebtoken'
 import { getDocumentPermissions } from '../utils/permissions'
+import { isAllowedOrigin } from '../utils/origins'
 
 // y-websocket utils for Y.js document sync
 // @ts-ignore - no type declarations for this subpath
@@ -28,6 +29,13 @@ export function setupYjsServer(server: HttpServer) {
 
     const documentId = url.pathname.slice('/yjs/'.length)
     if (!documentId) {
+      socket.destroy()
+      return
+    }
+
+    // Cookies authenticate this socket, so a page on another site must not be able to open it
+    const origin = request.headers.origin
+    if (origin && !isAllowedOrigin(origin)) {
       socket.destroy()
       return
     }

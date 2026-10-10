@@ -5,6 +5,7 @@ import { db, users, refreshTokens, verificationTokens } from '../db'
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt'
 import { sendVerificationEmail } from '../utils/email'
 import { verifyToken } from '../middleware/auth'
+import { cookieOptions, clearCookieOptions } from '../utils/cookies'
 import e from 'express'
 
 const router = express.Router()
@@ -151,12 +152,7 @@ router.post('/login', async (req, res) => {
       })
 
     // Set ONLY access token in HTTP-only cookie (refresh token stays server-side)
-    res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: false, // HTTP for localhost development
-      sameSite: 'lax',
-      maxAge: 3 * 60 * 1000 // 3 minutes
-    })
+    res.cookie('accessToken', accessToken, cookieOptions(3 * 60 * 1000)) // 3 minutes
 
     // Return user info only (NO tokens in response body)
     res.json({
@@ -206,12 +202,7 @@ router.post('/refresh', async (req, res) => {
       email: decoded.email
     })
 
-    res.cookie('accessToken', newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000
-    })
+    res.cookie('accessToken', newAccessToken, cookieOptions(15 * 60 * 1000))
 
     res.json({
       message: 'Token refreshed successfully',
@@ -236,7 +227,7 @@ router.post('/logout', verifyToken, async (req, res) => {
       .where(eq(refreshTokens.userId, req.user!.userId))
 
     // Clear access token cookie
-    res.clearCookie('accessToken')
+    res.clearCookie('accessToken', clearCookieOptions)
 
     res.json({ message: 'Logout successful' })
   } catch (error) {

@@ -5,6 +5,7 @@ import { config } from 'dotenv'
 import { createServer } from 'http'
 import { cleanupService } from './services/cleanup'
 import { setupYjsServer } from './services/yjs-server'
+import { allowedOrigins, isAllowedOrigin } from './utils/origins'
 
 // Load environment variables
 config()
@@ -13,18 +14,34 @@ const app = express()
 const server = createServer(app)
 const PORT = process.env.PORT || 3001
 
-// Middleware - Allow localhost origins for local development
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  process.env.FRONTEND_URL
-].filter((origin): origin is string => Boolean(origin))
+// Behind a TLS-terminating proxy (nginx, a platform router, a load balancer) the app only sees the proxy.
+// Trusting its X-Forwarded-* headers gives the real client IP and the real protocol (https).
+// TRUST_PROXY: a hop count (default 1 in production), "true", or "false".
+const trustProxy = process.env.TRUST_PROXY
+if (trustProxy === 'true') app.set('trust proxy', true)
+else if (trustProxy === 'false') app.set('trust proxy', false)
+else if (trustProxy && !isNaN(Number(trustProxy))) app.set('trust proxy', Number(trustProxy))
+else if (process.env.NODE_ENV === 'production') app.set('trust proxy', 1)
+
+if (process.env.NODE_ENV === 'production' && allowedOrigins.length === 0) {
+  console.warn('FRONTEND_URL (or ALLOWED_ORIGINS) is not set: browsers will not be able to call this API')
+}
 
 app.use(cors({
   origin: allowedOrigins,
   credentials: true
 }))
+
+// The auth cookies are sent with cross-site requests when SameSite=None, so reject state-changing requests that
+// come from a browser page on an origin we don't know (CSRF). Same-origin and non-browser clients send no Origin.
+app.use((req, res, next) => {
+  const safe = req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS'
+  const origin = req.headers.origin
+  if (!safe && origin && !isAllowedOrigin(origin)) {
+    return res.status(403).json({ message: 'Origin not allowed' })
+  }
+  next()
+})
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))

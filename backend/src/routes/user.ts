@@ -4,6 +4,7 @@ import { eq, and, desc, ne, or, ilike, sql } from 'drizzle-orm'
 import { db, users, refreshTokens, verificationTokens } from '../db'
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt'
 import { verifyToken } from '../middleware/auth'
+import { cookieOptions, clearCookieOptions } from '../utils/cookies'
 import { getSessionInfo, enforceTokenLimit } from '../utils/session'
 import { sendSessionNotification } from '../utils/notifications'
 
@@ -67,20 +68,10 @@ router.post('/login', async (req, res) => {
       })
 
     // Set access token in HTTP-only cookie
-    const accessCookieSettings = {
-      httpOnly: true,
-      secure: false, // HTTP for localhost development
-      sameSite: 'lax' as const,
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days (matches refresh token expiry)
-    }
+    const accessCookieSettings = cookieOptions(7 * 24 * 60 * 60 * 1000) // 7 days (matches refresh token expiry)
     
     // Set refresh token in separate HTTP-only cookie for middleware access
-    const refreshCookieSettings = {
-      httpOnly: true,
-      secure: false, // HTTP for localhost development
-      sameSite: 'lax' as const,
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    }
+    const refreshCookieSettings = cookieOptions(7 * 24 * 60 * 60 * 1000) // 7 days
     
     res.cookie('accessToken', accessToken, accessCookieSettings)
     res.cookie('refreshToken', refreshToken, refreshCookieSettings)
@@ -130,8 +121,8 @@ router.post('/logout', verifyToken, async (req, res) => {
       
 
     // Clear both access token and refresh token cookies
-    res.clearCookie('accessToken')
-    res.clearCookie('refreshToken')
+    res.clearCookie('accessToken', clearCookieOptions)
+    res.clearCookie('refreshToken', clearCookieOptions)
 
     res.json({ message: 'Logout successful' })
   } catch (error) {
@@ -291,12 +282,7 @@ router.post('/refresh-token', async (req, res) => {
       email: decoded.email
     })
 
-    res.cookie('accessToken', newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000
-    })
+    res.cookie('accessToken', newAccessToken, cookieOptions(15 * 60 * 1000))
     
 
     res.json({
