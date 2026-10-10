@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { FileText, PlusCircle, Clock, Calendar, Search, Users, MoreHorizontal, Trash2 } from 'lucide-react';
 import { teamAPI, documentsApi as documentAPI } from '@/lib/api';
 import DocumentPermissionsDialog from '@/components/document-permissions-dialog';
+import { BLANK_TEMPLATE_ID, DOCUMENT_TEMPLATES, getTemplate } from '@/lib/document-templates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface Team {
@@ -50,6 +51,9 @@ export default function DocumentsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
   const [newDocTeam, setNewDocTeam] = useState<string>('personal');
+  const [templateId, setTemplateId] = useState<string>(BLANK_TEMPLATE_ID);
+  // True while the title is the one we suggested from the template (so picking another template can replace it)
+  const [titleIsSuggested, setTitleIsSuggested] = useState(true);
   const router = useRouter();
 
   // Load teams when the component mounts
@@ -106,7 +110,7 @@ export default function DocumentsPage() {
       setLoading(true);
       const docData = {
         title: newDocTitle,
-        content: "",
+        content: getTemplate(templateId).build(new Date()),
         teamId: newDocTeam === "personal" ? null : newDocTeam || null
       };
 
@@ -119,6 +123,8 @@ export default function DocumentsPage() {
 
       setNewDocTitle('');
       setNewDocTeam('personal');
+      setTemplateId(BLANK_TEMPLATE_ID);
+      setTitleIsSuggested(true);
       setIsCreateDialogOpen(false);
 
       // Navigate to the document editor
@@ -127,6 +133,14 @@ export default function DocumentsPage() {
       setError(`Failed to create document: ${err.response?.data?.message || err.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelectTemplate = (id: string) => {
+    setTemplateId(id);
+    if (!newDocTitle.trim() || titleIsSuggested) {
+      setNewDocTitle(id === BLANK_TEMPLATE_ID ? '' : getTemplate(id).defaultTitle(new Date()));
+      setTitleIsSuggested(true);
     }
   };
 
@@ -189,12 +203,35 @@ export default function DocumentsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>Template</Label>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Template">
+                  {DOCUMENT_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={templateId === template.id}
+                      onClick={() => handleSelectTemplate(template.id)}
+                      className={`rounded-md border p-3 text-left text-sm transition-colors hover:bg-muted/60 ${
+                        templateId === template.id ? 'border-primary bg-muted' : ''
+                      }`}
+                    >
+                      <div className="font-medium">{template.name}</div>
+                      <div className="text-xs text-muted-foreground">{template.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="doc-title" className="text-right">Title</Label>
                 <Input
                   id="doc-title"
                   value={newDocTitle}
-                  onChange={(e) => setNewDocTitle(e.target.value)}
+                  onChange={(e) => {
+                    setNewDocTitle(e.target.value);
+                    setTitleIsSuggested(false);
+                  }}
                   className="col-span-3"
                   placeholder="Enter document title"
                 />
