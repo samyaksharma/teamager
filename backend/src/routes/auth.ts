@@ -81,25 +81,27 @@ router.post('/register', async (req, res) => {
         email: users.email
       })
 
-    // Generate verification token
-    const token = Math.random().toString(36).substring(2) + Date.now().toString(36)
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+    // Email verification is switched off by default: accounts work immediately and nothing mentions it.
+    // Set EMAIL_VERIFICATION=true to create a token and send the email (sent in the background, so a slow or
+    // unconfigured mail server can never delay or fail signup).
+    if (process.env.EMAIL_VERIFICATION === 'true') {
+      const token = Math.random().toString(36).substring(2) + Date.now().toString(36)
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
 
-    await db.insert(verificationTokens)
-      .values({
-        userId: newUser[0].id,
-        token,
-        expiresAt
+      await db.insert(verificationTokens)
+        .values({
+          userId: newUser[0].id,
+          token,
+          expiresAt
+        })
+
+      sendVerificationEmail(email, token).catch((emailError) => {
+        console.error('Failed to send verification email:', emailError)
       })
-
-    // Verification is optional: the account works immediately. Send the email in the background so a slow or
-    // unconfigured mail server can never delay or fail signup.
-    sendVerificationEmail(email, token).catch((emailError) => {
-      console.error('Failed to send verification email:', emailError)
-    })
+    }
 
     res.status(201).json({
-      message: 'User registered successfully. You can sign in right away; verifying your email is optional.',
+      message: 'User registered successfully.',
       user: newUser[0]
     })
   } catch (error) {

@@ -85,7 +85,7 @@ export function SuccessStep({ data, onRestart }: SuccessStepProps) {
         return
       }
 
-      // Step 2: sign in right away. Email verification is optional and doesn't gate anything.
+      // Step 2: sign in right away (no email verification step)
       try {
         const login = await authApi.login(data.user.email.trim().toLowerCase(), data.user.password)
         if (login.user) {
@@ -179,7 +179,7 @@ export function SuccessStep({ data, onRestart }: SuccessStepProps) {
             <p className="text-muted-foreground max-w-md">
               {needsLogin
                 ? "Your account has been created. Please sign in to continue."
-                : "Your account is ready and you're signed in. We've also sent a verification email, which you can use whenever you like. It isn't required."}
+                : "Your account is ready and you're signed in. You can head to your dashboard to start collaborating."}
             </p>
           </>
         )}
