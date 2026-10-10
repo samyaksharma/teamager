@@ -60,6 +60,7 @@ import { useState, useEffect } from "react"
 import { TasksProvider, useTasks } from "./tasksContext"
 import AuthContext, { useAuth } from "@/lib/authContext"
 import { teamApi } from "@/lib/api"
+import { useOpenNew } from "@/lib/open-new"
 import { TaskItems, TaskProgress } from "@/components/task-items"
 
 // Edit Task Form Component
@@ -197,6 +198,7 @@ function TasksContent() {
   } = useTasks()
   const { user, organizations, teams } = useAuth()
   const [isNewIssueDialogOpen, setIsNewIssueDialogOpen] = useState(false)
+  useOpenNew("task", () => setIsNewIssueDialogOpen(true))
   const [selectedFilter, setSelectedFilter] = useState<string>("all")
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("all")
   const [editingTask, setEditingTask] = useState<any>(null)

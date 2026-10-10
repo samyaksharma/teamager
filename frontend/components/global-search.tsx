@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
-import { CheckSquare, FileText, Hash, MessageSquare, Search } from "lucide-react"
+import { Calendar, CheckSquare, FilePlus, FileText, Hash, Home, LogOut, MessageSquare, Moon, PlusSquare, Search, Users } from "lucide-react"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Toggle } from "@/components/ui/toggle"
 import { searchApi, teamApi } from "@/lib/api"
 import { useAuth } from "@/lib/authContext"
+import { requestOpenNew } from "@/lib/open-new"
 import { useMessages } from "@/app/dashboard/messages/messagesContext"
 import { EnumLabels } from "@/lib/enums"
 
@@ -50,7 +52,8 @@ interface GlobalSearchProps {
 
 export function GlobalSearch({ hotkey = false, triggerClassName }: GlobalSearchProps) {
   const router = useRouter()
-  const { teams } = useAuth()
+  const { teams, logout } = useAuth()
+  const { resolvedTheme, setTheme } = useTheme()
   const { setActiveChannel, setActiveDirectContact } = useMessages()
 
   const [open, setOpen] = useState(false)
@@ -136,6 +139,40 @@ export function GlobalSearch({ hotkey = false, triggerClassName }: GlobalSearchP
     action()
   }
 
+
+  const commands = useMemo(
+    () => [
+      { id: "go-home", label: "Go to Home", keywords: "dashboard overview", icon: Home, run: () => router.push("/dashboard") },
+      { id: "go-tasks", label: "Go to Tasks", keywords: "board kanban list", icon: CheckSquare, run: () => router.push("/dashboard/tasks") },
+      { id: "go-calendar", label: "Go to Calendar", keywords: "schedule due dates", icon: Calendar, run: () => router.push("/dashboard/calendar") },
+      { id: "go-documents", label: "Go to Documents", keywords: "pages docs notes", icon: FileText, run: () => router.push("/dashboard/documents") },
+      { id: "go-messages", label: "Go to Messages", keywords: "chat channels dm", icon: MessageSquare, run: () => router.push("/dashboard/messages") },
+      { id: "go-members", label: "Go to Members", keywords: "people team roles", icon: Users, run: () => router.push("/dashboard/members") },
+      {
+        id: "new-task", label: "Create task", keywords: "new add issue", icon: PlusSquare,
+        run: () => { router.push("/dashboard/tasks"); requestOpenNew("task") },
+      },
+      {
+        id: "new-document", label: "Create document", keywords: "new add page template", icon: FilePlus,
+        run: () => { router.push("/dashboard/documents"); requestOpenNew("document") },
+      },
+      {
+        id: "toggle-theme", label: resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode",
+        keywords: "theme appearance dark light", icon: Moon,
+        run: () => setTheme(resolvedTheme === "dark" ? "light" : "dark"),
+      },
+      { id: "logout", label: "Log out", keywords: "sign out", icon: LogOut, run: () => { logout() } },
+    ],
+    [router, resolvedTheme, setTheme, logout]
+  )
+
+  // Commands match on their label/keywords; with an empty box only a few are shown
+  const visibleCommands = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return commands.slice(0, 6)
+    return commands.filter((c) => `${c.label} ${c.keywords}`.toLowerCase().includes(q))
+  }, [commands, query])
+
   const hasResults = !!results && (results.documents.length + results.tasks.length + results.messages.length > 0)
   const prefix = results?.suggestions ? "Suggested " : ""
 
@@ -190,7 +227,18 @@ export function GlobalSearch({ hotkey = false, triggerClassName }: GlobalSearchP
               </Select>
             </div>
             <CommandList className="max-h-96">
-              {!loading && !hasResults && <CommandEmpty>No results found.</CommandEmpty>}
+              {!loading && !hasResults && visibleCommands.length === 0 && <CommandEmpty>No results found.</CommandEmpty>}
+
+              {visibleCommands.length > 0 && (
+                <CommandGroup heading="Commands">
+                  {visibleCommands.map((c) => (
+                    <CommandItem key={c.id} value={`cmd-${c.id}`} onSelect={() => go(c.run)}>
+                      <c.icon className="mr-3 h-4 w-4 shrink-0" />
+                      <span className="text-sm">{c.label}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
 
               {results && results.documents.length > 0 && (
                 <CommandGroup heading={`${prefix}Documents`}>

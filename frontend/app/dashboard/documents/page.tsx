@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { FileText, PlusCircle, Clock, Calendar, Search, Users, MoreHorizontal, Trash2 } from 'lucide-react';
 import { teamAPI, documentsApi as documentAPI } from '@/lib/api';
 import DocumentPermissionsDialog from '@/components/document-permissions-dialog';
+import { useOpenNew } from '@/lib/open-new';
 import { BLANK_TEMPLATE_ID, DOCUMENT_TEMPLATES, getTemplate } from '@/lib/document-templates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -49,6 +50,7 @@ export default function DocumentsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTeam, setSelectedTeam] = useState<string>('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  useOpenNew('document', () => setIsCreateDialogOpen(true));
   const [newDocTitle, setNewDocTitle] = useState('');
   const [newDocTeam, setNewDocTeam] = useState<string>('personal');
   const [templateId, setTemplateId] = useState<string>(BLANK_TEMPLATE_ID);
