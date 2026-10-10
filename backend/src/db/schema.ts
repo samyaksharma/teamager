@@ -376,3 +376,31 @@ export const notificationSettings = pgTable("notification_setting", {
   tasks: boolean("tasks").default(true).notNull(),
   messages: boolean("messages").default(true).notNull()
 })
+
+
+// External links on tasks (git pull requests/commits/issues, shared files)
+export const taskLinks = pgTable("task_link", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  taskId: uuid("task_id")
+    .notNull()
+    .references(() => tasks.id, { onDelete: "cascade" }),
+  url: varchar("url", { length: 2048 }).notNull(),
+  // 'github' | 'gitlab' | 'gdrive' | 'dropbox' | 'other'
+  provider: varchar("provider", { length: 16 }).notNull(),
+  // 'pull_request' | 'issue' | 'commit' | 'branch' | 'repo' | 'file' | 'link'
+  kind: varchar("kind", { length: 16 }).notNull(),
+  label: varchar("label", { length: 255 }).notNull(),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (table) => ({
+  taskUrlUnique: unique().on(table.taskId, table.url)
+}))
+
+// Secret tokens for calendar (.ics) subscriptions
+export const calendarFeedTokens = pgTable("calendar_feed_token", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+})

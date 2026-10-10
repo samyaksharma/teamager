@@ -31,6 +31,7 @@ import {
 } from "date-fns"
 import { CalendarIcon, ChevronLeft, ChevronRight, Clock, Plus, Users, X } from "lucide-react"
 import { useSidebar } from "@/components/sidebar-toggle"
+import { CalendarSubscribe } from "@/components/calendar-subscribe"
 
 // Sample events data
 const EVENTS = [
@@ -158,6 +159,7 @@ export default function CalendarPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <CalendarSubscribe />
           <Select value={view} onValueChange={setView}>
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="View" />

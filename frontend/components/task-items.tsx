@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { CheckSquare, ListChecks, Plus, X } from "lucide-react"
+import { CheckSquare, ExternalLink, File, GitBranch, GitCommit, GitPullRequest, Link as LinkIcon, ListChecks, Plus, CircleDot, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -24,6 +24,30 @@ interface SubItem {
   assigneeName: string | null
 }
 
+interface TaskLink {
+  id: string
+  url: string
+  provider: "github" | "gitlab" | "gdrive" | "dropbox" | "other"
+  kind: "pull_request" | "issue" | "commit" | "branch" | "repo" | "file" | "link"
+  label: string
+}
+
+const PROVIDER_NAMES: Record<TaskLink["provider"], string> = {
+  github: "GitHub", gitlab: "GitLab", gdrive: "Google Drive", dropbox: "Dropbox", other: "Link",
+}
+
+function LinkKindIcon({ kind }: { kind: TaskLink["kind"] }) {
+  const cls = "h-4 w-4 shrink-0 text-muted-foreground"
+  switch (kind) {
+    case "pull_request": return <GitPullRequest className={cls} />
+    case "commit": return <GitCommit className={cls} />
+    case "branch": return <GitBranch className={cls} />
+    case "issue": return <CircleDot className={cls} />
+    case "file": return <File className={cls} />
+    default: return <LinkIcon className={cls} />
+  }
+}
+
 interface TaskItemsProps {
   taskId: string
   users: { id: string; name: string }[]
@@ -41,12 +65,19 @@ export function TaskItems({ taskId, users, onChanged }: TaskItemsProps) {
   const [newCheck, setNewCheck] = useState("")
   const [newSub, setNewSub] = useState("")
   const [newSubAssignee, setNewSubAssignee] = useState(UNASSIGNED)
+  const [links, setLinks] = useState<TaskLink[]>([])
+  const [newLink, setNewLink] = useState("")
 
   const load = useCallback(async () => {
     try {
-      const [items, subs] = await Promise.all([taskItemsApi.getChecklist(taskId), taskItemsApi.getSubtasks(taskId)])
+      const [items, subs, taskLinks] = await Promise.all([
+        taskItemsApi.getChecklist(taskId),
+        taskItemsApi.getSubtasks(taskId),
+        taskItemsApi.getLinks(taskId),
+      ])
       setChecklist(items)
       setSubItems(subs)
+      setLinks(taskLinks)
     } catch {
       toast.error("Failed to load checklist and sub-items")
     }
@@ -112,6 +143,24 @@ export function TaskItems({ taskId, users, onChanged }: TaskItemsProps) {
     }, "Failed to update sub-item").catch(() => load())
   }
 
+  const addLink = (e: React.FormEvent) => {
+    e.preventDefault()
+    const url = newLink.trim()
+    if (!url) return
+    run(async () => {
+      const link = await taskItemsApi.addLink(taskId, url)
+      setLinks((prev) => [...prev, link])
+      setNewLink("")
+    }, "Failed to add link")
+  }
+
+  const removeLink = (link: TaskLink) => {
+    run(async () => {
+      await taskItemsApi.deleteLink(taskId, link.id)
+      setLinks((prev) => prev.filter((l) => l.id !== link.id))
+    }, "Failed to remove link")
+  }
+
   const checkDone = checklist.filter((c) => c.done).length
   const subDone = subItems.filter((s) => s.status === TaskStatus.DONE).length
 
@@ -173,6 +222,42 @@ export function TaskItems({ taskId, users, onChanged }: TaskItemsProps) {
             </SelectContent>
           </Select>
           <Button type="submit" size="sm" variant="outline" className="h-8" disabled={!newSub.trim()} aria-label="Add sub-item">
+            <Plus className="h-4 w-4" />
+          </Button>
+        </form>
+      </section>
+
+      <section aria-label="Links">
+        <div className="mb-2 flex items-center justify-between">
+          <h4 className="flex items-center gap-2 text-sm font-medium">
+            <LinkIcon className="h-4 w-4" /> Links
+          </h4>
+          {links.length > 0 && <span className="text-xs text-muted-foreground">{links.length}</span>}
+        </div>
+        <ul className="space-y-1">
+          {links.map((link) => (
+            <li key={link.id} className="group flex items-center gap-2">
+              <LinkKindIcon kind={link.kind} />
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="min-w-0 flex-1 truncate text-sm hover:underline"
+                title={link.url}
+              >
+                {link.label}
+              </a>
+              <span className="text-xs text-muted-foreground">{PROVIDER_NAMES[link.provider]}</span>
+              <ExternalLink className="h-3 w-3 text-muted-foreground" aria-hidden />
+              <Button type="button" variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100" onClick={() => removeLink(link)} aria-label={`Remove ${link.label}`}>
+                <X className="h-3 w-3" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <form onSubmit={addLink} className="mt-2 flex gap-2">
+          <Input value={newLink} onChange={(e) => setNewLink(e.target.value)} placeholder="Paste a GitHub/GitLab PR, commit or issue, or a Drive/Dropbox link" className="h-8 text-sm" maxLength={2048} />
+          <Button type="submit" size="sm" variant="outline" className="h-8" disabled={!newLink.trim()} aria-label="Add link">
             <Plus className="h-4 w-4" />
           </Button>
         </form>

@@ -407,6 +407,12 @@ export const tasksApi = {
   }
 }
 
+// Calendar subscription (.ics feed) API calls
+export const calendarApi = {
+  getFeed: async (): Promise<{ url: string }> => (await api.get('/api/calendar/feed')).data,
+  rotateFeed: async (): Promise<{ url: string }> => (await api.post('/api/calendar/feed/rotate')).data
+}
+
 // Task checklist and sub-item API calls
 export const taskItemsApi = {
   getChecklist: async (taskId: string) => (await api.get(`/api/tasks/${taskId}/checklist`)).data,
@@ -414,6 +420,10 @@ export const taskItemsApi = {
   updateChecklistItem: async (taskId: string, itemId: string, data: { done?: boolean, content?: string }) =>
     (await api.put(`/api/tasks/${taskId}/checklist/${itemId}`, data)).data,
   deleteChecklistItem: async (taskId: string, itemId: string) => (await api.delete(`/api/tasks/${taskId}/checklist/${itemId}`)).data,
+
+  getLinks: async (taskId: string) => (await api.get(`/api/tasks/${taskId}/links`)).data,
+  addLink: async (taskId: string, url: string) => (await api.post(`/api/tasks/${taskId}/links`, { url })).data,
+  deleteLink: async (taskId: string, linkId: string) => (await api.delete(`/api/tasks/${taskId}/links/${linkId}`)).data,
 
   getSubtasks: async (taskId: string) => (await api.get(`/api/tasks/${taskId}/subtasks`)).data,
   addSubtask: async (taskId: string, data: { title: string, assignedTo?: string | null }) =>

@@ -1,6 +1,7 @@
 import express from 'express'
 import { eq, and, asc, inArray, sql } from 'drizzle-orm'
-import { db, tasks, taskTeams, taskChecklistItems, teamUsers, users } from '../db'
+import { db, tasks, taskTeams, taskChecklistItems, taskLinks, teamUsers, users } from '../db'
+import { parseLink } from '../utils/linkParser'
 import { verifyToken } from '../middleware/auth'
 import { notify } from '../utils/inAppNotifications'
 import { writableTeamIds } from '../utils/teamAccess'
@@ -185,6 +186,65 @@ router.post('/:taskId/subtasks', async (req, res) => {
   } catch (error) {
     console.error('Create subtask error:', error)
     res.status(500).json({ message: 'Failed to create sub-item' })
+  }
+})
+
+// ---- Links (git pull requests, commits, issues; shared files) ----
+
+router.get('/:taskId/links', async (req, res) => {
+  try {
+    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId)
+    if (access.status !== undefined) return res.status(access.status).json({ message: access.message })
+
+    const rows = await db.select().from(taskLinks)
+      .where(eq(taskLinks.taskId, req.params.taskId))
+      .orderBy(asc(taskLinks.createdAt))
+    res.json(rows)
+  } catch (error) {
+    console.error('Get task links error:', error)
+    res.status(500).json({ message: 'Failed to get links' })
+  }
+})
+
+router.post('/:taskId/links', async (req, res) => {
+  try {
+    const raw = typeof req.body.url === 'string' ? req.body.url : ''
+    if (raw.length > 2048) return res.status(400).json({ message: 'URL is too long' })
+    const parsed = parseLink(raw)
+    if (!parsed) return res.status(400).json({ message: 'Enter a valid http(s) link' })
+
+    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId, true)
+    if (access.status !== undefined) return res.status(access.status).json({ message: access.message })
+
+    const existing = await db.select({ id: taskLinks.id }).from(taskLinks)
+      .where(and(eq(taskLinks.taskId, req.params.taskId), eq(taskLinks.url, parsed.url))).limit(1)
+    if (existing.length > 0) return res.status(409).json({ message: 'This link is already attached' })
+
+    const [link] = await db.insert(taskLinks).values({
+      taskId: req.params.taskId,
+      ...parsed,
+      createdBy: req.user!.userId
+    }).returning()
+    res.status(201).json(link)
+  } catch (error) {
+    console.error('Add task link error:', error)
+    res.status(500).json({ message: 'Failed to add link' })
+  }
+})
+
+router.delete('/:taskId/links/:linkId', async (req, res) => {
+  try {
+    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId, true)
+    if (access.status !== undefined) return res.status(access.status).json({ message: access.message })
+
+    const removed = await db.delete(taskLinks)
+      .where(and(eq(taskLinks.id, req.params.linkId), eq(taskLinks.taskId, req.params.taskId)))
+      .returning({ id: taskLinks.id })
+    if (removed.length === 0) return res.status(404).json({ message: 'Link not found' })
+    res.json({ message: 'Link removed' })
+  } catch (error) {
+    console.error('Delete task link error:', error)
+    res.status(500).json({ message: 'Failed to remove link' })
   }
 })
 
