@@ -335,6 +335,12 @@ export const documentsApi = {
 
 // Task-related API calls
 export const tasksApi = {
+  // Move tasks into a status column and set their order within it
+  reorder: async (status: number, taskIds: string[]) => {
+    const response = await api.put('/api/tasks/reorder', { status, taskIds })
+    return response.data
+  },
+
   getAllTasks: async (params?: { 
     teamId?: string, 
     organizationId?: string,
@@ -405,6 +411,20 @@ export const tasksApi = {
   getTeamTasks: async (teamId: string) => {
     return tasksApi.getAllTasks({ teamId });
   }
+}
+
+// Saved task views API calls
+export interface TaskViewFilters {
+  status: string
+  assignee: string
+  team: string
+  search: string
+}
+
+export const taskViewsApi = {
+  list: async (): Promise<{ id: string, name: string, filters: TaskViewFilters }[]> => (await api.get('/api/task-views')).data,
+  save: async (name: string, filters: TaskViewFilters) => (await api.post('/api/task-views', { name, filters })).data,
+  remove: async (id: string) => (await api.delete(`/api/task-views/${id}`)).data
 }
 
 // Calendar subscription (.ics feed) API calls

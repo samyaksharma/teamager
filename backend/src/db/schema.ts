@@ -230,7 +230,9 @@ export const tasks = pgTable("task", {
   deletedAt: timestamp("deleted_at"),
   deletedBy: uuid("deleted_by").references(() => users.id),
   // Sub-item: points at the (top-level) task this one belongs to
-  parentId: uuid("parent_id")
+  parentId: uuid("parent_id"),
+  // Manual order within a board column (lower first); null until a task has been dragged
+  position: integer("position")
 })
 
 // Task checklist items
@@ -404,3 +406,18 @@ export const calendarFeedTokens = pgTable("calendar_feed_token", {
   token: varchar("token", { length: 64 }).notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull()
 })
+
+
+// Saved task filters ("views"), per user
+export const taskSavedViews = pgTable("task_saved_view", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 80 }).notNull(),
+  // { status, assignee, team, search }: validated by the API
+  filters: text("filters").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull()
+}, (table) => ({
+  userNameUnique: unique().on(table.userId, table.name)
+}))

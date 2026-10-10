@@ -8,6 +8,7 @@ import {
   TaskPriority,
   TaskStatus,
   TaskType,
+  EnumLabels,
   getEnumLabel,
   getEnumOptions,
   getEnumStyles,
@@ -62,6 +63,17 @@ import AuthContext, { useAuth } from "@/lib/authContext"
 import { teamApi } from "@/lib/api"
 import { useOpenNew } from "@/lib/open-new"
 import { TaskItems, TaskProgress } from "@/components/task-items"
+import { TaskBoard } from "@/components/task-board"
+import { TaskListView, TaskTimeline } from "@/components/task-views"
+import { TaskSavedViews } from "@/components/task-saved-views"
+import { tasksApi } from "@/lib/api"
+
+// Next status when clicking a card's status button: Backlog -> To Do -> In Progress -> In Review -> Done -> Backlog
+const STATUS_CYCLE = [TaskStatus.BACKLOG, TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW, TaskStatus.DONE]
+function nextStatusInCycle(current: unknown): number {
+  const index = STATUS_CYCLE.indexOf(Number(current))
+  return STATUS_CYCLE[(index + 1) % STATUS_CYCLE.length]
+}
 
 // Edit Task Form Component
 function EditTaskForm({ task, teams, organizations, users, onSave, onCancel }: {
@@ -75,12 +87,9 @@ function EditTaskForm({ task, teams, organizations, users, onSave, onCancel }: {
   const [formData, setFormData] = useState({
     title: task.title || '',
     description: task.description || '',
-    priority: typeof task.priority === 'number'
-      ? (task.priority === 2 ? 'high' : task.priority === 1 ? 'medium' : 'low')
-      : task.priority || 'medium',
-    status: typeof task.status === 'number'
-      ? (task.status === 2 ? 'done' : task.status === 1 ? 'in-progress' : 'backlog')
-      : task.status || 'backlog',
+    // Stored as the enum numbers (as strings, for the selects) so editing never changes them by accident
+    priority: String(typeof task.priority === 'number' ? task.priority : TaskPriority.LOW),
+    status: String(typeof task.status === 'number' ? task.status : TaskStatus.BACKLOG),
     assignedTo: task.assignedTo || 'unassigned',
     dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''
   })
@@ -124,9 +133,10 @@ function EditTaskForm({ task, teams, organizations, users, onSave, onCancel }: {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value={String(TaskPriority.CRITICAL)}>Critical</SelectItem>
+              <SelectItem value={String(TaskPriority.HIGH)}>High</SelectItem>
+              <SelectItem value={String(TaskPriority.MEDIUM)}>Medium</SelectItem>
+              <SelectItem value={String(TaskPriority.LOW)}>Low</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -138,10 +148,12 @@ function EditTaskForm({ task, teams, organizations, users, onSave, onCancel }: {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="backlog">Backlog</SelectItem>
-              <SelectItem value="todo">To Do</SelectItem>
-              <SelectItem value="in-progress">In Progress</SelectItem>
-              <SelectItem value="done">Done</SelectItem>
+              <SelectItem value={String(TaskStatus.BACKLOG)}>Backlog</SelectItem>
+              <SelectItem value={String(TaskStatus.TODO)}>To Do</SelectItem>
+              <SelectItem value={String(TaskStatus.IN_PROGRESS)}>In Progress</SelectItem>
+              <SelectItem value={String(TaskStatus.IN_REVIEW)}>In Review</SelectItem>
+              <SelectItem value={String(TaskStatus.DONE)}>Done</SelectItem>
+              <SelectItem value={String(TaskStatus.CANCELLED)}>Cancelled</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -199,8 +211,10 @@ function TasksContent() {
   const { user, organizations, teams } = useAuth()
   const [isNewIssueDialogOpen, setIsNewIssueDialogOpen] = useState(false)
   useOpenNew("task", () => setIsNewIssueDialogOpen(true))
+  // Filters: status is "all" or a TaskStatus number; the team filter covers assignment and teams
   const [selectedFilter, setSelectedFilter] = useState<string>("all")
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("all")
+  const [searchTerm, setSearchTerm] = useState("")
   const [editingTask, setEditingTask] = useState<any>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [teamMembers, setTeamMembers] = useState<any[]>([])
@@ -348,6 +362,17 @@ function TasksContent() {
     }
   }
 
+  // Dropping a card on the board: move it to the column and keep the order the user chose
+  const handleReorder = async (status: number, taskIds: string[]) => {
+    try {
+      await tasksApi.reorder(status, taskIds)
+      await refreshTasks()
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to move task')
+      await refreshTasks()
+    }
+  }
+
   const handleEditTask = (task: any) => {
     setEditingTask(task)
     setIsEditDialogOpen(true)
@@ -357,14 +382,11 @@ function TasksContent() {
     try {
       if (!editingTask) return
 
-      const priorityMap = { 'low': 0, 'medium': 1, 'high': 2 }
-      const statusMap = { 'backlog': 0, 'todo': 0, 'in-progress': 1, 'done': 2 }
-
       const updateData = {
         title: taskData.title,
         description: taskData.description,
-        priority: typeof taskData.priority === 'string' ? priorityMap[taskData.priority as keyof typeof priorityMap] : taskData.priority,
-        status: typeof taskData.status === 'string' ? statusMap[taskData.status as keyof typeof statusMap] : taskData.status,
+        priority: Number(taskData.priority),
+        status: Number(taskData.status),
         assignedTo: taskData.assignedTo === 'unassigned' ? null : taskData.assignedTo || null,
         dueDate: taskData.dueDate ? new Date(taskData.dueDate) : null
       }
@@ -377,21 +399,32 @@ function TasksContent() {
     }
   }
 
+  // The team filter select holds "all" | "me" | "unassigned" | a team id; saved views store it split in two
+  const currentFilters = {
+    status: selectedFilter,
+    assignee: selectedTeamFilter === "me" || selectedTeamFilter === "unassigned" ? selectedTeamFilter : "all",
+    team: selectedTeamFilter === "me" || selectedTeamFilter === "unassigned" ? "all" : selectedTeamFilter,
+    search: searchTerm,
+  }
+
+  const applyFilters = (filters: { status: string; assignee: string; team: string; search: string }) => {
+    setSelectedFilter(filters.status)
+    setSelectedTeamFilter(filters.assignee !== "all" ? filters.assignee : filters.team)
+    setSearchTerm(filters.search)
+  }
+
   // Get filtered tasks based on current filters
   const getFilteredTasks = () => {
-    let filteredTasks = tasks
-
-    // Apply status filter
-    if (selectedFilter !== "all") {
-      filteredTasks = getTasksByStatus(selectedFilter)
-    }
-
-    // Apply team filter (you can extend this based on your team data)
-    if (selectedTeamFilter !== "all") {
-      // Add team filtering logic here when you have team data
-    }
-
-    return filteredTasks
+    const query = searchTerm.trim().toLowerCase()
+    return tasks.filter((task: any) => {
+      if (selectedFilter !== "all" && Number(task.status) !== Number(selectedFilter)) return false
+      if (selectedTeamFilter === "me" && task.assignedTo !== user?.id) return false
+      if (selectedTeamFilter === "unassigned" && task.assignedTo) return false
+      if (!["all", "me", "unassigned"].includes(selectedTeamFilter) &&
+          !(task.teams || []).some((t: any) => t.id === selectedTeamFilter)) return false
+      if (query && !`${task.title} ${task.description ?? ""}`.toLowerCase().includes(query)) return false
+      return true
+    })
   }
 
   const filteredTasks = getFilteredTasks()
@@ -417,13 +450,13 @@ function TasksContent() {
                 <div className="flex items-center justify-between p-2 rounded bg-yellow-50 dark:bg-yellow-900/20">
                   <span className="text-sm">In Progress</span>
                   <Badge variant="secondary">
-                    {tasks.filter(t => t.status === 1 || t.status === 'in-progress').length}
+                    {tasks.filter(t => t.status === TaskStatus.IN_PROGRESS).length}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between p-2 rounded bg-green-50 dark:bg-green-900/20">
                   <span className="text-sm">Completed</span>
                   <Badge variant="secondary">
-                    {tasks.filter(t => t.status === 2 || t.status === 'done').length}
+                    {tasks.filter(t => t.status === TaskStatus.DONE).length}
                   </Badge>
                 </div>
               </div>
@@ -434,12 +467,12 @@ function TasksContent() {
                   <div key={task.id} className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer">
                     <div className="text-sm font-medium truncate">{task.title}</div>
                     <div className="text-xs text-gray-500 flex items-center gap-1">
-                      <Flag className={`h-3 w-3 ${(task.priority === 2 || task.priority === 'high') ? 'text-red-500' :
+                      <Flag className={`h-3 w-3 ${(task.priority === 2 || task.priority === 3 || task.priority === 'high') ? 'text-red-500' :
                           (task.priority === 1 || task.priority === 'medium') ? 'text-yellow-500' :
                             'text-blue-500'
                         }`} />
                       {typeof task.priority === 'number'
-                        ? (task.priority === 2 ? 'High' : task.priority === 1 ? 'Medium' : 'Low')
+                        ? (EnumLabels.TaskPriority[task.priority as keyof typeof EnumLabels.TaskPriority] ?? 'Low')
                         : task.priority
                       }
                     </div>
@@ -483,7 +516,13 @@ function TasksContent() {
           <div className="flex items-center gap-2">
             <div className="relative hidden sm:block">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
-              <Input type="search" placeholder="Search tasks" className="w-48 pl-8 text-sm" />
+              <Input
+                type="search"
+                placeholder="Search tasks"
+                className="w-48 pl-8 text-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
             <Button variant="outline" size="sm" className="gap-1" onClick={refreshTasks}>
               <RefreshCw className="h-4 w-4" />
@@ -791,37 +830,42 @@ function TasksContent() {
                     <span>List</span>
                   </TabsTrigger>
                   <TabsTrigger
-                    value="calendar"
+                    value="timeline"
                     className="flex items-center gap-1 px-2 py-1 h-8 text-xs sm:text-sm sm:px-3 sm:py-1.5 sm:h-9 sm:gap-2"
                   >
                     <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-                    <span>Calendar</span>
+                    <span>Timeline</span>
                   </TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-                    <SelectTrigger className="w-[120px] sm:w-[180px] h-8 text-xs">
+                    <SelectTrigger className="w-[120px] sm:w-[180px] h-8 text-xs" aria-label="Status filter">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Statuses</SelectItem>
-                      <SelectItem value="backlog">Backlog</SelectItem>
-                      <SelectItem value="todo">To Do</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="review">In Review</SelectItem>
-                      <SelectItem value="done">Done</SelectItem>
+                      <SelectItem value={String(TaskStatus.BACKLOG)}>Backlog</SelectItem>
+                      <SelectItem value={String(TaskStatus.TODO)}>To Do</SelectItem>
+                      <SelectItem value={String(TaskStatus.IN_PROGRESS)}>In Progress</SelectItem>
+                      <SelectItem value={String(TaskStatus.IN_REVIEW)}>In Review</SelectItem>
+                      <SelectItem value={String(TaskStatus.DONE)}>Done</SelectItem>
+                      <SelectItem value={String(TaskStatus.CANCELLED)}>Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
                   <Select value={selectedTeamFilter} onValueChange={setSelectedTeamFilter}>
-                    <SelectTrigger className="w-[120px] sm:w-[180px] h-8 text-xs">
+                    <SelectTrigger className="w-[120px] sm:w-[180px] h-8 text-xs" aria-label="Team filter">
                       <SelectValue placeholder="Team" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Teams</SelectItem>
                       <SelectItem value="me">Assigned to me</SelectItem>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {teams.map((team: any) => (
+                        <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
+                  <TaskSavedViews filters={currentFilters} onApply={applyFilters} />
                 </div>
               </div>
 
@@ -858,7 +902,7 @@ function TasksContent() {
                                     <Badge variant="outline" className={getEnumStyles.TaskType(task.type)}>
                                       {getEnumIcon.TaskType(task.type)} {getEnumLabel.TaskType(task.type)}
                                     </Badge>
-                                    <DropdownMenu>
+                                    <DropdownMenu modal={false}>
                                       <DropdownMenuTrigger asChild>
                                         <Button variant="ghost" size="icon" className="h-7 w-7">
                                           <MoreHorizontal className="h-4 w-4" />
@@ -918,16 +962,13 @@ function TasksContent() {
                                       size="sm"
                                       className="h-6 w-6 p-0"
                                       onClick={() => {
-                                        const currentStatus = typeof task.status === 'number' ? task.status :
-                                          (task.status === 'done' ? 2 : task.status === 'in-progress' ? 1 : 0)
-                                        const nextStatus = currentStatus === 2 ? 0 : currentStatus + 1
-                                        handleQuickStatusChange(task.id, nextStatus)
+                                        handleQuickStatusChange(task.id, nextStatusInCycle(task.status))
                                       }}
                                       title="Click to advance status"
                                     >
-                                      {(task.status === 2 || task.status === 'done') ? (
+                                      {(task.status === TaskStatus.DONE) ? (
                                         <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                      ) : (task.status === 1 || task.status === 'in-progress') ? (
+                                      ) : (task.status === TaskStatus.IN_PROGRESS || task.status === TaskStatus.IN_REVIEW) ? (
                                         <Clock className="h-4 w-4 text-yellow-600" />
                                       ) : (
                                         <Circle className="h-4 w-4 text-gray-400" />
@@ -1007,13 +1048,13 @@ function TasksContent() {
                                         }}
                                         title="Click to change priority"
                                       >
-                                        <Flag className={`h-3 w-3 ${(task.priority === 2 || task.priority === 'high') ? 'text-red-500' :
+                                        <Flag className={`h-3 w-3 ${(task.priority === 2 || task.priority === 3 || task.priority === 'high') ? 'text-red-500' :
                                             (task.priority === 1 || task.priority === 'medium') ? 'text-yellow-500' :
                                               'text-blue-500'
                                           }`} />
                                         <span className="text-xs ml-1">
                                           {typeof task.priority === 'number'
-                                            ? (task.priority === 2 ? 'High' : task.priority === 1 ? 'Medium' : 'Low')
+                                            ? (EnumLabels.TaskPriority[task.priority as keyof typeof EnumLabels.TaskPriority] ?? 'Low')
                                             : task.priority
                                           }
                                         </span>
@@ -1058,791 +1099,29 @@ function TasksContent() {
                 </div>
 
                 {/* Desktop View - Column layout */}
-                <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-4 md:h-[calc(100vh-220px)]">
-                  {/* Backlog Column */}
-                  <div className="space-y-4 flex flex-col">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full bg-gray-400"></div>
-                        <h3 className="font-medium">Backlog</h3>
-                        <span className="text-xs text-gray-500">
-                          {filteredTasks.filter(task => task.status === 0 || task.status === 'backlog').length}
-                        </span>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex-1 overflow-auto md:max-h-[calc(100vh-280px)]">
-                      <div className="space-y-3 pr-2">
-                        {filteredTasks
-                          .filter(task => task.status === 0 || task.status === 'backlog')
-                          .map(task => (
-                            <Card key={task.id} className="shadow-sm">
-                              <CardContent className="p-3">
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
-                                      {task.type || 'Task'}
-                                    </Badge>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handleEditTask(task)}>
-                                          Edit Task
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-
-                                        {/* Status submenu */}
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.BACKLOG)}>
-                                          Move to Backlog
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.IN_PROGRESS)}>
-                                          Move to In Progress
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.DONE)}>
-                                          Mark as Complete
-                                        </DropdownMenuItem>
-
-                                        <DropdownMenuSeparator />
-
-                                        {/* Priority submenu */}
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.HIGH)}>
-                                          Set High Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.MEDIUM)}>
-                                          Set Medium Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.LOW)}>
-                                          Set Low Priority
-                                        </DropdownMenuItem>
-
-                                        <DropdownMenuSeparator />
-
-                                        {/* Assignment */}
-                                        <DropdownMenuItem onClick={() => handleQuickAssign(task.id, user?.id || null)}>
-                                          Assign to Me
-                                        </DropdownMenuItem>
-                                        {teamMembers.slice(0, 3).map(member => (
-                                          <DropdownMenuItem key={member.id} onClick={() => handleQuickAssign(task.id, member.id)}>
-                                            Assign to {member.name}
-                                          </DropdownMenuItem>
-                                        ))}
-                                        <DropdownMenuItem onClick={() => handleQuickAssign(task.id, null)}>
-                                          Unassign
-                                        </DropdownMenuItem>
-
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          className="text-red-600"
-                                          onClick={() => deleteTask(task.id)}
-                                        >
-                                          Delete
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-medium flex-1">{task.title}</h4>
-                                    <TaskProgress task={task} />
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => {
-                                        const currentStatus = typeof task.status === 'number' ? task.status :
-                                          (task.status === 'done' ? 2 : task.status === 'in-progress' ? 1 : 0)
-                                        const nextStatus = currentStatus === 2 ? 0 : currentStatus + 1
-                                        handleQuickStatusChange(task.id, nextStatus)
-                                      }}
-                                      title="Click to advance status"
-                                    >
-                                      {(task.status === 2 || task.status === 'done') ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                      ) : (task.status === 1 || task.status === 'in-progress') ? (
-                                        <Clock className="h-4 w-4 text-yellow-600" />
-                                      ) : (
-                                        <Circle className="h-4 w-4 text-gray-400" />
-                                      )}
-                                    </Button>
-                                  </div>
-
-                                  {/* Quick Action Buttons */}
-                                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleEditTask(task)}
-                                        title="Edit task"
-                                      >
-                                        <Edit className="h-3 w-3 mr-1" />
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleQuickAssign(task.id, user?.id || null)}
-                                        title="Assign to me"
-                                      >
-                                        <UserPlus className="h-3 w-3 mr-1" />
-                                        Assign
-                                      </Button>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                        onClick={() => deleteTask(task.id)}
-                                        title="Delete task"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                  <p className="text-sm text-gray-500">{task.description}</p>
-                                  {/* Organization badge */}
-                                  {task.organization && (
-                                    <div className="flex items-center gap-1 mb-1">
-                                      <div className="flex items-center gap-1">
-                                        <div className="h-2 w-2 rounded-full bg-purple-400" />
-                                        <span className="text-xs text-gray-600">{task.organization.name}</span>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Teams */}
-                                  {task.teams && task.teams.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mb-1">
-                                      {task.teams.map(team => (
-                                        <Badge key={team.id} variant="outline" className="bg-blue-50 text-blue-700 border-blue-100 text-xs py-0">
-                                          {team.name}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-auto p-0 hover:bg-transparent"
-                                        onClick={() => {
-                                          const currentPriority = typeof task.priority === 'number' ? task.priority :
-                                            (task.priority === 'high' ? 2 : task.priority === 'medium' ? 1 : 0)
-                                          const nextPriority = currentPriority === 2 ? 0 : currentPriority + 1
-                                          handleQuickPriorityChange(task.id, nextPriority)
-                                        }}
-                                        title="Click to change priority"
-                                      >
-                                        <Flag className={`h-3 w-3 ${(task.priority === 2 || task.priority === 'high') ? 'text-red-500' :
-                                            (task.priority === 1 || task.priority === 'medium') ? 'text-yellow-500' :
-                                              'text-blue-500'
-                                          }`} />
-                                        <span className="text-xs ml-1">
-                                          {typeof task.priority === 'number'
-                                            ? (task.priority === 2 ? 'High' : task.priority === 1 ? 'Medium' : 'Low')
-                                            : task.priority
-                                          }
-                                        </span>
-                                      </Button>
-                                    </div>
-                                    {task.id && (
-                                      <div className="flex items-center gap-1">
-                                        <Tag className="h-3 w-3" />
-                                        <span className="text-xs">{task.id.substring(0, 8)}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center justify-between">
-                                    {task.dueDate && (
-                                      <div className="flex items-center gap-1">
-                                        <Clock className="h-3 w-3" />
-                                        <span className="text-xs">
-                                          {new Date(task.dueDate).toLocaleDateString()}
-                                        </span>
-                                      </div>
-                                    )}
-                                    {task.assignee && (
-                                      <Avatar className="h-6 w-6">
-                                        <AvatarImage
-                                          src={task.assignee.avatarUrl || "/placeholder-user.jpg"}
-                                          alt={task.assignee.name}
-                                        />
-                                        <AvatarFallback>
-                                          {task.assignee.name.substring(0, 2).toUpperCase()}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Todo Column */}
-                  <div className="space-y-4 flex flex-col">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full bg-blue-400"></div>
-                        <h3 className="font-medium">To Do</h3>
-                        <span className="text-xs text-gray-500">
-                          {filteredTasks.filter(task => task.status === 'todo').length}
-                        </span>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex-1 overflow-auto md:max-h-[calc(100vh-280px)]">
-                      <div className="space-y-3 pr-2">
-                        {filteredTasks
-                          .filter(task => task.status === 'todo')
-                          .map(task => (
-                            <Card key={task.id} className="shadow-sm">
-                              <CardContent className="p-3">
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">
-                                      {task.type || 'Task'}
-                                    </Badge>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handleEditTask(task)}>
-                                          Edit Task
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.BACKLOG)}>
-                                          Move to Backlog
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.IN_PROGRESS)}>
-                                          Move to In Progress
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.DONE)}>
-                                          Mark as Complete
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.HIGH)}>
-                                          Set High Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.MEDIUM)}>
-                                          Set Medium Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.LOW)}>
-                                          Set Low Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickAssign(task.id, user?.id || null)}>
-                                          Assign to Me
-                                        </DropdownMenuItem>
-                                        {teamMembers.slice(0, 3).map(member => (
-                                          <DropdownMenuItem key={member.id} onClick={() => handleQuickAssign(task.id, member.id)}>
-                                            Assign to {member.name}
-                                          </DropdownMenuItem>
-                                        ))}
-                                        <DropdownMenuItem onClick={() => handleQuickAssign(task.id, null)}>
-                                          Unassign
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          className="text-red-600"
-                                          onClick={() => deleteTask(task.id)}
-                                        >
-                                          Delete
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-medium flex-1">{task.title}</h4>
-                                    <TaskProgress task={task} />
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => {
-                                        const currentStatus = typeof task.status === 'number' ? task.status :
-                                          (task.status === 'done' ? 2 : task.status === 'in-progress' ? 1 : 0)
-                                        const nextStatus = currentStatus === 2 ? 0 : currentStatus + 1
-                                        handleQuickStatusChange(task.id, nextStatus)
-                                      }}
-                                      title="Click to advance status"
-                                    >
-                                      {(task.status === 2 || task.status === 'done') ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                      ) : (task.status === 1 || task.status === 'in-progress') ? (
-                                        <Clock className="h-4 w-4 text-yellow-600" />
-                                      ) : (
-                                        <Circle className="h-4 w-4 text-gray-400" />
-                                      )}
-                                    </Button>
-                                  </div>
-
-                                  {/* Quick Action Buttons */}
-                                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleEditTask(task)}
-                                        title="Edit task"
-                                      >
-                                        <Edit className="h-3 w-3 mr-1" />
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleQuickAssign(task.id, user?.id || null)}
-                                        title="Assign to me"
-                                      >
-                                        <UserPlus className="h-3 w-3 mr-1" />
-                                        Assign
-                                      </Button>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                        onClick={() => deleteTask(task.id)}
-                                        title="Delete task"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                  <p className="text-sm text-gray-500">{task.description}</p>
-                                  <div className="flex items-center justify-between">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-auto p-0 hover:bg-transparent"
-                                      onClick={() => {
-                                        const currentPriority = typeof task.priority === 'number' ? task.priority :
-                                          (task.priority === 'high' ? 2 : task.priority === 'medium' ? 1 : 0)
-                                        const nextPriority = currentPriority === 2 ? 0 : currentPriority + 1
-                                        handleQuickPriorityChange(task.id, nextPriority)
-                                      }}
-                                      title="Click to change priority"
-                                    >
-                                      <Flag className={`h-3 w-3 ${(task.priority === 2 || task.priority === 'high') ? 'text-red-500' :
-                                          (task.priority === 1 || task.priority === 'medium') ? 'text-yellow-500' :
-                                            'text-blue-500'
-                                        }`} />
-                                      <span className="text-xs ml-1">
-                                        {typeof task.priority === 'number'
-                                          ? (task.priority === 2 ? 'High' : task.priority === 1 ? 'Medium' : 'Low')
-                                          : task.priority
-                                        }
-                                      </span>
-                                    </Button>
-                                    {task.assignee && (
-                                      <Avatar className="h-6 w-6">
-                                        <AvatarImage
-                                          src={task.assignee.avatarUrl || "/placeholder-user.jpg"}
-                                          alt={task.assignee.name}
-                                        />
-                                        <AvatarFallback>
-                                          {task.assignee.name.substring(0, 2).toUpperCase()}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* In Progress Column */}
-                  <div className="space-y-4 flex flex-col">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full bg-yellow-400"></div>
-                        <h3 className="font-medium">In Progress</h3>
-                        <span className="text-xs text-gray-500">
-                          {filteredTasks.filter(task => task.status === 1 || task.status === 'in-progress').length}
-                        </span>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex-1 overflow-auto md:max-h-[calc(100vh-280px)]">
-                      <div className="space-y-3 pr-2">
-                        {filteredTasks
-                          .filter(task => task.status === 1 || task.status === 'in-progress')
-                          .map(task => (
-                            <Card key={task.id} className="shadow-sm">
-                              <CardContent className="p-3">
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">
-                                      {task.type || 'Task'}
-                                    </Badge>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handleEditTask(task)}>
-                                          Edit Task
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.BACKLOG)}>
-                                          Move to Backlog
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.IN_PROGRESS)}>
-                                          Move to In Progress
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.DONE)}>
-                                          Mark as Complete
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.HIGH)}>
-                                          Set High Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.MEDIUM)}>
-                                          Set Medium Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.LOW)}>
-                                          Set Low Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickAssign(task.id, user?.id || null)}>
-                                          Assign to Me
-                                        </DropdownMenuItem>
-                                        {teamMembers.slice(0, 3).map(member => (
-                                          <DropdownMenuItem key={member.id} onClick={() => handleQuickAssign(task.id, member.id)}>
-                                            Assign to {member.name}
-                                          </DropdownMenuItem>
-                                        ))}
-                                        <DropdownMenuItem onClick={() => handleQuickAssign(task.id, null)}>
-                                          Unassign
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          className="text-red-600"
-                                          onClick={() => deleteTask(task.id)}
-                                        >
-                                          Delete
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-medium flex-1">{task.title}</h4>
-                                    <TaskProgress task={task} />
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => {
-                                        const currentStatus = typeof task.status === 'number' ? task.status :
-                                          (task.status === 'done' ? 2 : task.status === 'in-progress' ? 1 : 0)
-                                        const nextStatus = currentStatus === 2 ? 0 : currentStatus + 1
-                                        handleQuickStatusChange(task.id, nextStatus)
-                                      }}
-                                      title="Click to advance status"
-                                    >
-                                      {(task.status === 2 || task.status === 'done') ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                      ) : (task.status === 1 || task.status === 'in-progress') ? (
-                                        <Clock className="h-4 w-4 text-yellow-600" />
-                                      ) : (
-                                        <Circle className="h-4 w-4 text-gray-400" />
-                                      )}
-                                    </Button>
-                                  </div>
-
-                                  {/* Quick Action Buttons */}
-                                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleEditTask(task)}
-                                        title="Edit task"
-                                      >
-                                        <Edit className="h-3 w-3 mr-1" />
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleQuickAssign(task.id, user?.id || null)}
-                                        title="Assign to me"
-                                      >
-                                        <UserPlus className="h-3 w-3 mr-1" />
-                                        Assign
-                                      </Button>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                        onClick={() => deleteTask(task.id)}
-                                        title="Delete task"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                  <p className="text-sm text-gray-500">{task.description}</p>
-                                  <div className="flex items-center justify-between">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-auto p-0 hover:bg-transparent"
-                                      onClick={() => {
-                                        const currentPriority = typeof task.priority === 'number' ? task.priority :
-                                          (task.priority === 'high' ? 2 : task.priority === 'medium' ? 1 : 0)
-                                        const nextPriority = currentPriority === 2 ? 0 : currentPriority + 1
-                                        handleQuickPriorityChange(task.id, nextPriority)
-                                      }}
-                                      title="Click to change priority"
-                                    >
-                                      <Flag className={`h-3 w-3 ${(task.priority === 2 || task.priority === 'high') ? 'text-red-500' :
-                                          (task.priority === 1 || task.priority === 'medium') ? 'text-yellow-500' :
-                                            'text-blue-500'
-                                        }`} />
-                                      <span className="text-xs ml-1">
-                                        {typeof task.priority === 'number'
-                                          ? (task.priority === 2 ? 'High' : task.priority === 1 ? 'Medium' : 'Low')
-                                          : task.priority
-                                        }
-                                      </span>
-                                    </Button>
-                                    {task.assignee && (
-                                      <Avatar className="h-6 w-6">
-                                        <AvatarImage
-                                          src={task.assignee.avatarUrl || "/placeholder-user.jpg"}
-                                          alt={task.assignee.name}
-                                        />
-                                        <AvatarFallback>
-                                          {task.assignee.name.substring(0, 2).toUpperCase()}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Done Column */}
-                  <div className="space-y-4 flex flex-col">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full bg-green-400"></div>
-                        <h3 className="font-medium">Done</h3>
-                        <span className="text-xs text-gray-500">
-                          {filteredTasks.filter(task => task.status === 2 || task.status === 'done').length}
-                        </span>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex-1 overflow-auto md:max-h-[calc(100vh-280px)]">
-                      <div className="space-y-3 pr-2">
-                        {filteredTasks
-                          .filter(task => task.status === 2 || task.status === 'done')
-                          .map(task => (
-                            <Card key={task.id} className="shadow-sm">
-                              <CardContent className="p-3">
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
-                                      {task.type || 'Task'}
-                                    </Badge>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handleEditTask(task)}>
-                                          Edit Task
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.BACKLOG)}>
-                                          Move to Backlog
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.IN_PROGRESS)}>
-                                          Move to In Progress
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickStatusChange(task.id, TaskStatus.DONE)}>
-                                          Mark as Complete
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.HIGH)}>
-                                          Set High Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.MEDIUM)}>
-                                          Set Medium Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleQuickPriorityChange(task.id, TaskPriority.LOW)}>
-                                          Set Low Priority
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleQuickAssign(task.id, user?.id || null)}>
-                                          Assign to Me
-                                        </DropdownMenuItem>
-                                        {teamMembers.slice(0, 3).map(member => (
-                                          <DropdownMenuItem key={member.id} onClick={() => handleQuickAssign(task.id, member.id)}>
-                                            Assign to {member.name}
-                                          </DropdownMenuItem>
-                                        ))}
-                                        <DropdownMenuItem onClick={() => handleQuickAssign(task.id, null)}>
-                                          Unassign
-                                        </DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                          className="text-red-600"
-                                          onClick={() => deleteTask(task.id)}
-                                        >
-                                          Delete
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-medium flex-1">{task.title}</h4>
-                                    <TaskProgress task={task} />
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => {
-                                        const currentStatus = typeof task.status === 'number' ? task.status :
-                                          (task.status === 'done' ? 2 : task.status === 'in-progress' ? 1 : 0)
-                                        const nextStatus = currentStatus === 2 ? 0 : currentStatus + 1
-                                        handleQuickStatusChange(task.id, nextStatus)
-                                      }}
-                                      title="Click to advance status"
-                                    >
-                                      {(task.status === 2 || task.status === 'done') ? (
-                                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                      ) : (task.status === 1 || task.status === 'in-progress') ? (
-                                        <Clock className="h-4 w-4 text-yellow-600" />
-                                      ) : (
-                                        <Circle className="h-4 w-4 text-gray-400" />
-                                      )}
-                                    </Button>
-                                  </div>
-
-                                  {/* Quick Action Buttons */}
-                                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleEditTask(task)}
-                                        title="Edit task"
-                                      >
-                                        <Edit className="h-3 w-3 mr-1" />
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        onClick={() => handleQuickAssign(task.id, user?.id || null)}
-                                        title="Assign to me"
-                                      >
-                                        <UserPlus className="h-3 w-3 mr-1" />
-                                        Assign
-                                      </Button>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                        onClick={() => deleteTask(task.id)}
-                                        title="Delete task"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                  <p className="text-sm text-gray-500">{task.description}</p>
-                                  <div className="flex items-center justify-between">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-auto p-0 hover:bg-transparent"
-                                      onClick={() => {
-                                        const currentPriority = typeof task.priority === 'number' ? task.priority :
-                                          (task.priority === 'high' ? 2 : task.priority === 'medium' ? 1 : 0)
-                                        const nextPriority = currentPriority === 2 ? 0 : currentPriority + 1
-                                        handleQuickPriorityChange(task.id, nextPriority)
-                                      }}
-                                      title="Click to change priority"
-                                    >
-                                      <Flag className={`h-3 w-3 ${(task.priority === 2 || task.priority === 'high') ? 'text-red-500' :
-                                          (task.priority === 1 || task.priority === 'medium') ? 'text-yellow-500' :
-                                            'text-blue-500'
-                                        }`} />
-                                      <span className="text-xs ml-1">
-                                        {typeof task.priority === 'number'
-                                          ? (task.priority === 2 ? 'High' : task.priority === 1 ? 'Medium' : 'Low')
-                                          : task.priority
-                                        }
-                                      </span>
-                                    </Button>
-                                    {task.assignee && (
-                                      <Avatar className="h-6 w-6">
-                                        <AvatarImage
-                                          src={task.assignee.avatarUrl || "/placeholder-user.jpg"}
-                                          alt={task.assignee.name}
-                                        />
-                                        <AvatarFallback>
-                                          {task.assignee.name.substring(0, 2).toUpperCase()}
-                                        </AvatarFallback>
-                                      </Avatar>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
+                <div className="hidden md:block">
+                  <TaskBoard
+                    tasks={filteredTasks as any}
+                    currentUserId={user?.id}
+                    members={assignableUsers.filter(Boolean) as any}
+                    onEdit={handleEditTask}
+                    onStatus={handleQuickStatusChange}
+                    onPriority={handleQuickPriorityChange}
+                    onAssign={handleQuickAssign}
+                    onDelete={async (id) => { await deleteTask(id) }}
+                    onReorder={handleReorder}
+                  />
                 </div>
+              </TabsContent>
+
+              {/* List View */}
+              <TabsContent value="list" className="mt-0">
+                <TaskListView tasks={filteredTasks as any} onEdit={handleEditTask} />
+              </TabsContent>
+
+              {/* Timeline View */}
+              <TabsContent value="timeline" className="mt-0">
+                <TaskTimeline tasks={filteredTasks as any} onEdit={handleEditTask} />
               </TabsContent>
             </Tabs>
           )}

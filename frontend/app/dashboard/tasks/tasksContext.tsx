@@ -166,16 +166,15 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
   }
 
   // Manually refresh tasks
+  // Refreshes quietly: `isLoading` is only for the first load, so the board isn't replaced by a
+  // loading screen (losing scroll position and selection) every time tasks are refetched.
   const refreshTasks = async () => {
     try {
-      setIsLoading(true)
       const fetchedTasks = await tasksApi.getAllTasks()
       setTasks(fetchedTasks)
       setLastFetchTime(Date.now())
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to refresh tasks'))
-    } finally {
-      setIsLoading(false)
     }
   }
 

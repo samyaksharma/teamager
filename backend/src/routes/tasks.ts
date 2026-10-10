@@ -113,7 +113,7 @@ router.get('/', async (req, res) => {
       .leftJoin(users, eq(tasks.createdBy, users.id))
       .leftJoin(organizations, eq(tasks.organizationId, organizations.id))
       .where(and(...conditions))
-      .orderBy(tasks.dueDate, tasks.priority)
+      .orderBy(sql`${tasks.position} asc nulls last`, tasks.dueDate, tasks.priority)
 
     // Get assignee details for each task
     const userIds = tasksData
@@ -395,6 +395,46 @@ router.post('/', async (req, res) => {
   } catch (error) {
     console.error('Create task error:', error)
     res.status(500).json({ message: 'Failed to create task' })
+  }
+})
+
+// Move tasks to a status and set their order within it: PUT /api/tasks/reorder { status, taskIds }
+// (registered before /:taskId so "reorder" isn't read as an id)
+router.put('/reorder', async (req, res) => {
+  try {
+    const userId = req.user!.userId
+    const { status, taskIds } = req.body
+    const validStatuses = [TaskStatus.BACKLOG, TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW, TaskStatus.DONE, TaskStatus.CANCELLED]
+
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: 'Invalid status' })
+    }
+    if (!Array.isArray(taskIds) || taskIds.length === 0 || taskIds.length > 200 || taskIds.some((id: unknown) => typeof id !== 'string')) {
+      return res.status(400).json({ message: 'taskIds must be a list of task ids (max 200)' })
+    }
+
+    // Only tasks the user may change: their own, assigned to them, or in a team where they aren't a Viewer
+    const writable = await writableTeamIds(userId)
+    const teamTaskIds = writable.length > 0
+      ? (await db.select({ taskId: taskTeams.taskId }).from(taskTeams).where(inArray(taskTeams.teamId, writable))).map(t => t.taskId)
+      : []
+    const found = await db.select({ id: tasks.id, createdBy: tasks.createdBy, assignedTo: tasks.assignedTo })
+      .from(tasks).where(and(inArray(tasks.id, taskIds), isNull(tasks.deletedAt)))
+    const allowed = new Set(found
+      .filter(t => t.createdBy === userId || t.assignedTo === userId || teamTaskIds.includes(t.id))
+      .map(t => t.id))
+
+    if (taskIds.some((id: string) => !allowed.has(id))) {
+      return res.status(403).json({ message: 'You cannot change one or more of these tasks' })
+    }
+
+    for (let i = 0; i < taskIds.length; i++) {
+      await db.update(tasks).set({ status, position: i }).where(eq(tasks.id, taskIds[i]))
+    }
+    res.json({ message: 'Tasks reordered', updated: taskIds.length })
+  } catch (error) {
+    console.error('Reorder tasks error:', error)
+    res.status(500).json({ message: 'Failed to reorder tasks' })
   }
 })
 
