@@ -8,6 +8,8 @@ interface CollaborativeEditorProps {
   initialContent: string
   user: any
   canEdit: boolean
+  canComment?: boolean
+  canAdmin?: boolean
   onSave: (content: string) => Promise<void>
 }
 

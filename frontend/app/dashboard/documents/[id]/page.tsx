@@ -142,6 +142,8 @@ export default function DocumentPage() {
         <CollaborativeEditor 
           documentId={documentId}
           canEdit={document?.permissions?.canEdit || false}
+          canComment={document?.permissions?.canComment || false}
+          canAdmin={document?.permissions?.canAdmin || document?.permissions?.effectiveRole === 'owner' || false}
           initialContent={document?.content || ''}
           user={user}
           onSave={async (content: string) => {

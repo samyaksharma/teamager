@@ -557,6 +557,17 @@ export const directMessagesApi = {
   }
 }
 
+// Document comments and suggestions API calls
+export const documentCommentsApi = {
+  list: async (documentId: string) => (await api.get(`/api/documents/${documentId}/comments`)).data,
+  add: async (documentId: string, data: { content: string, quote?: string, suggestion?: string, parentId?: string }) =>
+    (await api.post(`/api/documents/${documentId}/comments`, data)).data,
+  setStatus: async (documentId: string, commentId: string, status: string) =>
+    (await api.put(`/api/documents/${documentId}/comments/${commentId}`, { status })).data,
+  remove: async (documentId: string, commentId: string) =>
+    (await api.delete(`/api/documents/${documentId}/comments/${commentId}`)).data
+}
+
 // Document version history API calls
 export const documentVersionsApi = {
   list: async (documentId: string) => (await api.get(`/api/documents/${documentId}/versions`)).data,

@@ -334,7 +334,18 @@ export const documentComments = pgTable("document_comment", {
   createdBy: uuid("created_by")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").defaultNow().notNull()
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  // Reply to a top-level comment
+  parentId: uuid("parent_id"),
+  // The document text this comment/suggestion refers to
+  quote: text("quote"),
+  // 'comment' | 'suggestion' (a proposed replacement for `quote`)
+  kind: varchar("kind", { length: 16 }).default("comment").notNull(),
+  suggestion: text("suggestion"),
+  // comment: 'open' | 'resolved'; suggestion: 'open' | 'accepted' | 'rejected'
+  status: varchar("status", { length: 16 }).default("open").notNull(),
+  resolvedBy: uuid("resolved_by").references(() => users.id, { onDelete: "set null" }),
+  resolvedAt: timestamp("resolved_at")
 })
 
 // In-app notifications

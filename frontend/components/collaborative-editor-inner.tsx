@@ -1,6 +1,7 @@
 'use client'
 
 import { DocumentHistory } from "@/components/document-history"
+import { DocumentComments } from "@/components/document-comments"
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
@@ -39,6 +40,8 @@ interface CollaborativeEditorProps {
   initialContent: string
   user: any
   canEdit: boolean
+  canComment?: boolean
+  canAdmin?: boolean
   onSave: (content: string) => Promise<void>
 }
 
@@ -96,6 +99,8 @@ function EditorBody({
   initialContent,
   user,
   canEdit,
+  canComment = false,
+  canAdmin = false,
   onSave,
   ydoc,
   provider,
@@ -454,7 +459,16 @@ function EditorBody({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <DocumentComments
+          documentId={documentId}
+          editor={editor}
+          currentUserId={user.id}
+          canComment={canComment}
+          canEdit={canEdit}
+          canAdmin={canAdmin}
+          flush={handleManualSave}
+        />
         <DocumentHistory
           documentId={documentId}
           canEdit={canEdit}
