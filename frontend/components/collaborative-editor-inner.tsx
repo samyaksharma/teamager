@@ -1,5 +1,6 @@
 'use client'
 
+import { DocumentHistory } from "@/components/document-history"
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Collaboration from '@tiptap/extension-collaboration'
@@ -55,13 +56,50 @@ function getUserColor(userId: string): string {
   return COLORS[Math.abs(hash) % COLORS.length]
 }
 
-export default function CollaborativeEditorInner({
+// Owns the Y.js doc and websocket provider. They are created in an effect (not memoized) so that
+// React StrictMode's mount/unmount/mount cycle gets a fresh, live pair instead of reusing destroyed ones.
+export default function CollaborativeEditorInner(props: CollaborativeEditorProps) {
+  const { documentId } = props
+  const [collab, setCollab] = useState<{ ydoc: Y.Doc; provider: WebsocketProvider } | null>(null)
+
+  useEffect(() => {
+    const ydoc = new Y.Doc()
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+    const wsUrl = apiUrl.replace(/^http/, 'ws') + '/yjs'
+    const provider = new WebsocketProvider(wsUrl, documentId, ydoc, {
+      connect: true,
+      disableBc: true,
+    })
+    setCollab({ ydoc, provider })
+
+    return () => {
+      setCollab(null)
+      provider.destroy()
+      ydoc.destroy()
+    }
+  }, [documentId])
+
+  if (!collab) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-96 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+        <div className="mt-2 text-center text-sm text-gray-500">Connecting...</div>
+      </div>
+    )
+  }
+
+  return <EditorBody key={documentId} {...props} ydoc={collab.ydoc} provider={collab.provider} />
+}
+
+function EditorBody({
   documentId,
   initialContent,
   user,
   canEdit,
   onSave,
-}: CollaborativeEditorProps) {
+  ydoc,
+  provider,
+}: CollaborativeEditorProps & { ydoc: Y.Doc; provider: WebsocketProvider }) {
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [isConnected, setIsConnected] = useState(false)
@@ -74,20 +112,6 @@ export default function CollaborativeEditorInner({
   const [slashMenuPosition, setSlashMenuPosition] = useState({ x: 0, y: 0 })
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [slashQuery, setSlashQuery] = useState('')
-
-  // Create Y.js doc and provider once per documentId
-  const { ydoc, provider } = useMemo(() => {
-    const doc = new Y.Doc()
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-    const wsUrl = apiUrl.replace(/^http/, 'ws') + '/yjs'
-
-    const prov = new WebsocketProvider(wsUrl, documentId, doc, {
-      connect: true,
-      disableBc: true,
-    })
-
-    return { ydoc: doc, provider: prov }
-  }, [documentId])
 
   // Connection status & awareness
   useEffect(() => {
@@ -117,10 +141,8 @@ export default function CollaborativeEditorInner({
     return () => {
       provider.off('status', handleStatus)
       provider.awareness.off('change', handleAwarenessChange)
-      provider.destroy()
-      ydoc.destroy()
     }
-  }, [provider, ydoc, user])
+  }, [provider, user])
 
   const editor = useEditor({
     extensions: [
@@ -432,6 +454,15 @@ export default function CollaborativeEditorInner({
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <DocumentHistory
+          documentId={documentId}
+          canEdit={canEdit}
+          flush={handleManualSave}
+          applyContent={(html) => editor.commands.setContent(html)}
+        />
+      </div>
+
       {/* Status Bar */}
       <Card>
         <CardHeader className="pb-3">

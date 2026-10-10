@@ -557,6 +557,15 @@ export const directMessagesApi = {
   }
 }
 
+// Document version history API calls
+export const documentVersionsApi = {
+  list: async (documentId: string) => (await api.get(`/api/documents/${documentId}/versions`)).data,
+  get: async (documentId: string, versionId: string) => (await api.get(`/api/documents/${documentId}/versions/${versionId}`)).data,
+  saveNamed: async (documentId: string, label: string) => (await api.post(`/api/documents/${documentId}/versions`, { label })).data,
+  restore: async (documentId: string, versionId: string) =>
+    (await api.post(`/api/documents/${documentId}/versions/${versionId}/restore`)).data
+}
+
 // Search API calls
 export interface SearchParams {
   q?: string

@@ -59,6 +59,7 @@ import logRoutes from './routes/logs'
 import notificationRoutes from './routes/notifications'
 import searchRoutes from './routes/search'
 import taskItemRoutes from './routes/task-items'
+import documentVersionRoutes from './routes/document-versions'
 
 // API Routes - matching frontend expectations
 app.use('/api/auth', authRoutes)
@@ -69,6 +70,7 @@ app.use('/api/teams', teamRoutes)
 app.use('/api/tasks', taskRoutes)
 app.use('/api/tasks', taskItemRoutes)
 app.use('/api/documents', documentRoutes)
+app.use('/api/documents', documentVersionRoutes)
 app.use('/api/channels', channelRoutes)
 app.use('/api/direct-messages', directMessageRoutes)
 app.use('/api/invitations', invitationRoutes)

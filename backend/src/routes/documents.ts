@@ -2,6 +2,7 @@ import express from 'express'
 import { eq, and, or, isNull, sql } from 'drizzle-orm'
 import { db, documents, users, teams, teamUsers, organizationUsers, documentRoles } from '../db'
 import { notify } from '../utils/inAppNotifications'
+import { recordVersionOnSave } from '../utils/documentVersions'
 import { verifyToken } from '../middleware/auth'
 import { getDocumentPermissions, checkDocumentAccess, viewableDocumentsCondition, assignDocumentRole, removeDocumentRole } from '../utils/permissions'
 import { DocumentRole } from '../types/enums'
@@ -228,6 +229,10 @@ router.put('/:docId', async (req, res) => {
       .set(updateData)
       .where(eq(documents.id, docId))
       .returning()
+
+    if (typeof content === 'string') {
+      await recordVersionOnSave(existingDoc[0], content, userId)
+    }
 
     // Get updated document with author info
     const docWithAuthor = await db.select({

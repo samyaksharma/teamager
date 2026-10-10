@@ -247,6 +247,23 @@ export const taskChecklistItems = pgTable("task_checklist_item", {
   taskPositionIdx: index("task_checklist_item_task_idx").on(table.taskId, table.position)
 }))
 
+// Document version history (HTML snapshots)
+export const documentVersions = pgTable("document_version", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  documentId: uuid("document_id")
+    .notNull()
+    .references(() => documents.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  // Set for versions saved on purpose ("Before launch"), which are never merged into later edits
+  label: varchar("label", { length: 120 }),
+  createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull()
+}, (table) => ({
+  documentCreatedIdx: index("document_version_doc_created_idx").on(table.documentId, table.createdAt)
+}))
+
 // Task teams junction table
 export const taskTeams = pgTable("task_team", {
   id: uuid("id").defaultRandom().primaryKey(),
