@@ -185,6 +185,7 @@ export function AddTeamMemberDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="viewer">Viewer (read-only)</SelectItem>
                   <SelectItem value="member">Member</SelectItem>
                   <SelectItem value="contributor">Contributor</SelectItem>
                   <SelectItem value="lead">Team Lead</SelectItem>

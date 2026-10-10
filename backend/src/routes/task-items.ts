@@ -3,6 +3,7 @@ import { eq, and, asc, inArray, sql } from 'drizzle-orm'
 import { db, tasks, taskTeams, taskChecklistItems, teamUsers, users } from '../db'
 import { verifyToken } from '../middleware/auth'
 import { notify } from '../utils/inAppNotifications'
+import { writableTeamIds } from '../utils/teamAccess'
 
 // Checklists and sub-items for a task. Mounted on /api/tasks next to the main task routes.
 const router = express.Router()
@@ -10,15 +11,17 @@ const router = express.Router()
 router.use(verifyToken)
 
 // Same access rule as the task routes: creator, assignee, or a member of one of the task's teams
-async function loadAccessibleTask(taskId: string, userId: string) {
+// `write` excludes teams where the user is a read-only Viewer
+async function loadAccessibleTask(taskId: string, userId: string, write = false) {
   const found = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1)
   if (found.length === 0) return { status: 404, message: 'Task not found' } as const
   const task = found[0]
 
   let hasAccess = task.createdBy === userId || task.assignedTo === userId
   if (!hasAccess) {
-    const myTeams = (await db.select({ teamId: teamUsers.teamId }).from(teamUsers).where(eq(teamUsers.userId, userId)))
-      .map(t => t.teamId)
+    const myTeams = write
+      ? await writableTeamIds(userId)
+      : (await db.select({ teamId: teamUsers.teamId }).from(teamUsers).where(eq(teamUsers.userId, userId))).map(t => t.teamId)
     if (myTeams.length > 0) {
       const link = await db.select().from(taskTeams)
         .where(and(eq(taskTeams.taskId, taskId), inArray(taskTeams.teamId, myTeams))).limit(1)
@@ -52,7 +55,7 @@ router.post('/:taskId/checklist', async (req, res) => {
     if (!content || content.length > 500) {
       return res.status(400).json({ message: 'Checklist item text is required (max 500 characters)' })
     }
-    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId)
+    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId, true)
     if (access.status !== undefined) return res.status(access.status).json({ message: access.message })
 
     const last = await db.select({ max: sql<number>`coalesce(max(${taskChecklistItems.position}), -1)::int` })
@@ -70,7 +73,7 @@ router.post('/:taskId/checklist', async (req, res) => {
 
 router.put('/:taskId/checklist/:itemId', async (req, res) => {
   try {
-    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId)
+    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId, true)
     if (access.status !== undefined) return res.status(access.status).json({ message: access.message })
 
     const update: { content?: string; done?: boolean } = {}
@@ -99,7 +102,7 @@ router.put('/:taskId/checklist/:itemId', async (req, res) => {
 
 router.delete('/:taskId/checklist/:itemId', async (req, res) => {
   try {
-    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId)
+    const access = await loadAccessibleTask(req.params.taskId, req.user!.userId, true)
     if (access.status !== undefined) return res.status(access.status).json({ message: access.message })
 
     const removed = await db.delete(taskChecklistItems)
@@ -147,7 +150,7 @@ router.post('/:taskId/subtasks', async (req, res) => {
     }
     const assignedTo: string | null = req.body.assignedTo || null
 
-    const access = await loadAccessibleTask(req.params.taskId, userId)
+    const access = await loadAccessibleTask(req.params.taskId, userId, true)
     if (access.status !== undefined) return res.status(access.status).json({ message: access.message })
     const parent = access.task
     if (parent.parentId) {

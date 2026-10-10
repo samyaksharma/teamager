@@ -5,7 +5,7 @@ import { notify } from '../utils/inAppNotifications'
 import { recordVersionOnSave } from '../utils/documentVersions'
 import { verifyToken } from '../middleware/auth'
 import { getDocumentPermissions, checkDocumentAccess, viewableDocumentsCondition, assignDocumentRole, removeDocumentRole } from '../utils/permissions'
-import { DocumentRole } from '../types/enums'
+import { DocumentRole, TeamRole } from '../types/enums'
 
 const router = express.Router()
 
@@ -155,6 +155,9 @@ router.post('/', async (req, res) => {
 
       if (teamMembership.length === 0) {
         return res.status(403).json({ message: 'Access denied to this team' })
+      }
+      if (teamMembership[0].role === TeamRole.VIEWER) {
+        return res.status(403).json({ message: 'Viewers have read-only access to this team' })
       }
     }
 

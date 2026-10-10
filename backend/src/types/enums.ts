@@ -45,6 +45,7 @@ export enum OrganizationRole {
 }
 
 export enum TeamRole {
+  VIEWER = -1,    // Read-only: can view and comment, but not create or change team content
   MEMBER = 0,
   CONTRIBUTOR = 1,
   LEAD = 2        // Higher number = more permissions
@@ -141,6 +142,7 @@ export const EnumLabels = {
   },
   
   TeamRole: {
+    [TeamRole.VIEWER]: 'Viewer',
     [TeamRole.MEMBER]: 'Member',
     [TeamRole.CONTRIBUTOR]: 'Contributor',
     [TeamRole.LEAD]: 'Lead'

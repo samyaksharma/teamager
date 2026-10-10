@@ -2,6 +2,7 @@ import express from 'express'
 import { eq, and, or, isNull, inArray, sql } from 'drizzle-orm'
 import { db, tasks, users, teams, teamUsers, taskTeams, taskChecklistItems, organizations } from '../db'
 import { notify } from '../utils/inAppNotifications'
+import { canWriteInTeams, writableTeamIds, VIEWER_MESSAGE } from '../utils/teamAccess'
 import { verifyToken } from '../middleware/auth'
 import { TaskStatus, TaskPriority, TaskType } from '../types/enums'
 
@@ -315,6 +316,10 @@ router.post('/', async (req, res) => {
       if (inaccessibleTeams.length > 0) {
         return res.status(403).json({ message: 'Access denied to some teams' })
       }
+
+      if (!(await canWriteInTeams(userId, allTeamIds, true))) {
+        return res.status(403).json({ message: VIEWER_MESSAGE })
+      }
     }
 
     // Create task
@@ -416,13 +421,10 @@ router.put('/:taskId', async (req, res) => {
     let hasAccess = task.createdBy === userId || task.assignedTo === userId
 
     if (!hasAccess) {
-      // Check via taskTeams junction
-      const userTeams = await db.select({ teamId: teamUsers.teamId })
-        .from(teamUsers)
-        .where(eq(teamUsers.userId, userId))
+      // Check via taskTeams junction (Viewers can read tasks but not change them)
+      const teamIds = await writableTeamIds(userId)
 
-      if (userTeams.length > 0) {
-        const teamIds = userTeams.map(ut => ut.teamId)
+      if (teamIds.length > 0) {
         const taskTeamAccess = await db.select()
           .from(taskTeams)
           .where(and(

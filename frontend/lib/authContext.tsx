@@ -29,6 +29,8 @@ interface Team {
   id: string
   name: string
   organizationId?: string
+  // The current user's role in this team (TeamRole)
+  role?: number
   createdAt: string
   deletedAt?: string
   deletedBy?: string

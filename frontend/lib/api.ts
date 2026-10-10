@@ -728,6 +728,11 @@ export const teamApi = {
     return response.data;
   },
   
+  updateMemberRole: async (teamId: string, memberId: string, role: number) => {
+    const response = await api.put(`/api/teams/${teamId}/members/${memberId}`, { role });
+    return response.data;
+  },
+
   removeMember: async (teamId: string, memberId: string) => {
     const response = await api.delete(`/api/teams/${teamId}/members/${memberId}`);
     return response.data;

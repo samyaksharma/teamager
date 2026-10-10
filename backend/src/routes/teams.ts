@@ -4,6 +4,20 @@ import { db, teams, teamUsers, users, organizations } from '../db'
 import { verifyToken } from '../middleware/auth'
 import { TeamRole } from '../types/enums'
 
+const TEAM_ROLE_BY_NAME: Record<string, TeamRole> = {
+  viewer: TeamRole.VIEWER,
+  member: TeamRole.MEMBER,
+  contributor: TeamRole.CONTRIBUTOR,
+  lead: TeamRole.LEAD
+}
+
+// Accepts the stored number or the role name ('viewer', 'member', 'contributor', 'lead'); null when invalid
+const parseTeamRole = (value: unknown): TeamRole | null => {
+  if (typeof value === 'string' && value in TEAM_ROLE_BY_NAME) return TEAM_ROLE_BY_NAME[value]
+  if (typeof value === 'number' && Object.values(TEAM_ROLE_BY_NAME).includes(value)) return value as TeamRole
+  return null
+}
+
 const router = express.Router()
 
 // Apply auth middleware to all routes
@@ -170,7 +184,8 @@ router.put('/:teamId', async (req, res) => {
 router.post('/:teamId/members', async (req, res) => {
   try {
     const { teamId } = req.params
-    const { userId: newUserId, email, role = TeamRole.MEMBER } = req.body
+    const { userId: newUserId, email, role: requestedRole = TeamRole.MEMBER } = req.body
+    const role = parseTeamRole(requestedRole)
     const currentUserId = req.user!.userId
 
 
@@ -195,6 +210,14 @@ router.post('/:teamId/members', async (req, res) => {
     // Only team leads and contributors can add members
     if (teamMembership[0].role !== TeamRole.LEAD && teamMembership[0].role !== TeamRole.CONTRIBUTOR) {
       return res.status(403).json({ message: 'Only team leads and contributors can add members' })
+    }
+
+    // Anyone can be added as a member or viewer; higher roles are granted by leads only
+    if (role === null) {
+      return res.status(400).json({ message: 'Invalid role' })
+    }
+    if (role > TeamRole.MEMBER && teamMembership[0].role !== TeamRole.LEAD) {
+      return res.status(403).json({ message: 'Only team leads can grant the contributor or lead role' })
     }
 
     // Get target user ID (either from provided userId or by looking up email)
@@ -263,8 +286,12 @@ router.post('/:teamId/members', async (req, res) => {
 router.put('/:teamId/members/:memberId', async (req, res) => {
   try {
     const { teamId, memberId } = req.params
-    const { role } = req.body
+    const role = parseTeamRole(req.body.role)
     const currentUserId = req.user!.userId
+
+    if (role === null) {
+      return res.status(400).json({ message: 'Invalid role' })
+    }
 
     // Check if current user is lead of the team
     const teamMembership = await db.select()
@@ -278,6 +305,19 @@ router.put('/:teamId/members/:memberId', async (req, res) => {
 
     if (teamMembership.length === 0) {
       return res.status(403).json({ message: 'Only team leads can update member roles' })
+    }
+
+    // A team must always keep at least one lead
+    if (role !== TeamRole.LEAD) {
+      const target = await db.select().from(teamUsers)
+        .where(and(eq(teamUsers.teamId, teamId), eq(teamUsers.userId, memberId))).limit(1)
+      if (target.length > 0 && target[0].role === TeamRole.LEAD) {
+        const leads = await db.select({ id: teamUsers.id }).from(teamUsers)
+          .where(and(eq(teamUsers.teamId, teamId), eq(teamUsers.role, TeamRole.LEAD)))
+        if (leads.length <= 1) {
+          return res.status(400).json({ message: 'A team must have at least one lead' })
+        }
+      }
     }
 
     const updatedMember = await db.update(teamUsers)

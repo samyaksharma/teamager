@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, UserPlus, MoreVertical, Crown, Shield, User, Trash2, Mail, Clock, CheckCircle, XCircle, RefreshCw } from "lucide-react"
+import { Search, UserPlus, MoreVertical, Crown, Shield, User, Eye, Trash2, Mail, Clock, CheckCircle, XCircle, RefreshCw } from "lucide-react"
+import { TeamRole } from "@/lib/enums"
 import { useAuth } from "@/lib/authContext"
 import { invitationsApi, teamApi, organizationsApi } from "@/lib/api"
 import { toast } from "sonner"
@@ -51,6 +52,8 @@ export default function MembersPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedRole, setSelectedRole] = useState<string>("all")
+  const [roster, setRoster] = useState<Record<string, Member[]>>({})
+  const [rosterLoading, setRosterLoading] = useState(false)
   const [selectedStatus, setSelectedStatus] = useState<string>("all")
   const [selectedTeam, setSelectedTeam] = useState<string>("all")
   const [orgInviteDialogOpen, setOrgInviteDialogOpen] = useState(false)
@@ -67,7 +70,8 @@ export default function MembersPage() {
 
   useEffect(() => {
     fetchData()
-  }, [teams])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams, currentOrganization])
 
   // Auto-refresh data every 15 seconds
   useEffect(() => {
@@ -78,7 +82,9 @@ export default function MembersPage() {
     }, 15000) // 15 seconds
 
     return () => clearInterval(interval)
-  }, [teams])
+    // fetchData reads currentOrganization, so refetch (and rebuild the interval) when it arrives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teams, currentOrganization])
 
   const fetchData = async (showLoading = true) => {
     try {
@@ -261,25 +267,66 @@ export default function MembersPage() {
     }
   }
 
+  // Numbers are team roles (TeamRole); strings are the organization invitation roles
+  const roleKey = (role: string | number) => {
+    if (typeof role !== 'number') return role
+    switch (role) {
+      case TeamRole.LEAD: return 'admin'
+      case TeamRole.CONTRIBUTOR: return 'moderator'
+      case TeamRole.VIEWER: return 'viewer'
+      default: return 'member'
+    }
+  }
+
+  const loadRoster = async () => {
+    setRosterLoading(true)
+    try {
+      const entries = await Promise.all(
+        teams.map(async (team) => [team.id, await teamApi.getMembers(team.id).catch(() => [])] as const)
+      )
+      setRoster(Object.fromEntries(entries))
+    } finally {
+      setRosterLoading(false)
+    }
+  }
+
+  const changeRole = async (teamId: string, memberId: string, role: number) => {
+    const previous = roster
+    setRoster((r) => ({ ...r, [teamId]: r[teamId].map((m) => (m.id === memberId ? { ...m, role } : m)) }))
+    try {
+      await teamApi.updateMemberRole(teamId, memberId, role)
+      toast.success("Role updated")
+    } catch (error: any) {
+      setRoster(previous)
+      toast.error(error.response?.data?.message || "Failed to update role")
+    }
+  }
+
   const getRoleIcon = (role: string | number) => {
-    const roleStr = typeof role === 'number' ? (role === 0 ? 'admin' : role === 1 ? 'moderator' : 'member') : role
+    const roleStr = roleKey(role)
     switch (roleStr) {
       case 'admin':
         return <Crown className="h-4 w-4 text-yellow-500" />
       case 'moderator':
         return <Shield className="h-4 w-4 text-blue-500" />
+      case 'viewer':
+        return <Eye className="h-4 w-4 text-gray-400" />
       default: // member
         return <User className="h-4 w-4 text-gray-500" />
     }
   }
 
   const getRoleBadge = (role: string | number) => {
-    const roleStr = typeof role === 'number' ? (role === 0 ? 'admin' : role === 1 ? 'moderator' : 'member') : role
-    const roleNames: Record<string, string> = { 'admin': 'Admin', 'moderator': 'Moderator', 'member': 'Member' }
+    const roleStr = roleKey(role)
+    // Team roles read Lead/Contributor/Member/Viewer; invitations keep Admin/Member
+    const roleNames: Record<string, string> = typeof role === 'number'
+      ? { 'admin': 'Lead', 'moderator': 'Contributor', 'member': 'Member', 'viewer': 'Viewer' }
+      : { 'admin': 'Admin', 'moderator': 'Moderator', 'member': 'Member' }
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       'admin': "destructive",
       'moderator': "secondary",
-      'member': "outline"
+      'member': "outline",
+      'viewer': "outline"
     }
     return <Badge variant={variants[roleStr] || "outline"}>{roleNames[roleStr] || 'Member'}</Badge>
   }
@@ -324,8 +371,9 @@ export default function MembersPage() {
     return matchesSearch
   })
 
-  const canManageMembers = user && (user.role === "admin" || user.role === "moderator" || 
-    teams.some(team => team.role === 0 || team.role === 1)) // Team admin/moderator
+  // Removing members and changing roles is limited to team leads (enforced by the API as well)
+  const canManageMembers = !!user && teams.some(team => team.role === TeamRole.LEAD)
+  const leadTeams = teams.filter(team => team.role === TeamRole.LEAD)
 
   if (loading) {
     return (
@@ -430,6 +478,7 @@ export default function MembersPage() {
           <TabsTrigger value="members">Team Members</TabsTrigger>
           <TabsTrigger value="sent">Sent Invitations</TabsTrigger>
           <TabsTrigger value="received">Received Invitations</TabsTrigger>
+          <TabsTrigger value="roles" onClick={loadRoster}>Roles & permissions</TabsTrigger>
         </TabsList>
 
         <TabsContent value="members" className="space-y-4">
@@ -449,9 +498,10 @@ export default function MembersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="0">Admin</SelectItem>
-                <SelectItem value="1">Moderator</SelectItem>
-                <SelectItem value="3">Member</SelectItem>
+                <SelectItem value={String(TeamRole.LEAD)}>Lead</SelectItem>
+                <SelectItem value={String(TeamRole.CONTRIBUTOR)}>Contributor</SelectItem>
+                <SelectItem value={String(TeamRole.MEMBER)}>Member</SelectItem>
+                <SelectItem value={String(TeamRole.VIEWER)}>Viewer</SelectItem>
               </SelectContent>
             </Select>
             <Select value={selectedTeam} onValueChange={setSelectedTeam}>
@@ -684,6 +734,63 @@ export default function MembersPage() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="roles" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">What each role can do</CardTitle>
+              <CardDescription>Roles apply per team.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div><dt className="font-medium">Lead (admin)</dt><dd className="text-muted-foreground">Manages members and roles, removes members, plus everything a contributor can do.</dd></div>
+                <div><dt className="font-medium">Contributor</dt><dd className="text-muted-foreground">Creates channels, adds members and everything a member can do.</dd></div>
+                <div><dt className="font-medium">Member (editor)</dt><dd className="text-muted-foreground">Creates and edits tasks and documents, posts in channels.</dd></div>
+                <div><dt className="font-medium">Viewer</dt><dd className="text-muted-foreground">Read-only: can view tasks, documents and channels, but not create or change team content.</dd></div>
+              </dl>
+            </CardContent>
+          </Card>
+
+          {rosterLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+          {teams.map((team) => {
+            const isLead = team.role === TeamRole.LEAD
+            return (
+              <Card key={team.id} data-testid={`roster-${team.name}`}>
+                <CardHeader>
+                  <CardTitle className="text-base">{team.name}</CardTitle>
+                  <CardDescription>
+                    {isLead ? "You can change roles in this team." : "Only team leads can change roles."}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(roster[team.id] ?? []).map((member) => (
+                    <div key={member.id} className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{member.name}{member.id === user?.id && " (you)"}</div>
+                        <div className="truncate text-xs text-muted-foreground">{member.email}</div>
+                      </div>
+                      {isLead && member.id !== user?.id ? (
+                        <Select value={String(member.role)} onValueChange={(v) => changeRole(team.id, member.id, Number(v))}>
+                          <SelectTrigger className="w-40" aria-label={`Role for ${member.name}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={String(TeamRole.LEAD)}>Lead</SelectItem>
+                            <SelectItem value={String(TeamRole.CONTRIBUTOR)}>Contributor</SelectItem>
+                            <SelectItem value={String(TeamRole.MEMBER)}>Member</SelectItem>
+                            <SelectItem value={String(TeamRole.VIEWER)}>Viewer</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        getRoleBadge(member.role)
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )
+          })}
         </TabsContent>
       </Tabs>
 

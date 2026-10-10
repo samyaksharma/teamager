@@ -4,6 +4,7 @@ import { db, channels, messages, messageReactions, users, teamUsers, teams, task
 import { verifyToken } from '../middleware/auth'
 import { TeamRole } from '../types/enums'
 import { notify } from '../utils/inAppNotifications'
+import { VIEWER_MESSAGE } from '../utils/teamAccess'
 
 const router = express.Router()
 
@@ -314,7 +315,7 @@ const messageSelect = {
 }
 
 // Returns the channel if the user is in its team, otherwise null
-async function getAccessibleChannel(channelId: string, userId: string) {
+async function getAccessibleChannel(channelId: string, userId: string, write = false) {
   const channel = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1)
   if (channel.length === 0) return { error: 404, message: 'Channel not found' } as const
   const membership = await db.select()
@@ -322,6 +323,7 @@ async function getAccessibleChannel(channelId: string, userId: string) {
     .where(and(eq(teamUsers.teamId, channel[0].teamId), eq(teamUsers.userId, userId)))
     .limit(1)
   if (membership.length === 0) return { error: 403, message: 'Access denied to this channel' } as const
+  if (write && membership[0].role === TeamRole.VIEWER) return { error: 403, message: VIEWER_MESSAGE } as const
   return { channel: channel[0] } as const
 }
 
@@ -427,7 +429,7 @@ router.post('/:channelId/messages/:messageId/reactions', async (req, res) => {
       return res.status(400).json({ message: 'A valid emoji is required' })
     }
 
-    const access = await getAccessibleChannel(channelId, userId)
+    const access = await getAccessibleChannel(channelId, userId, true)
     if (access.error !== undefined) {
       return res.status(access.error).json({ message: access.message })
     }
@@ -463,7 +465,7 @@ router.post('/:channelId/messages/:messageId/task', async (req, res) => {
     const { channelId, messageId } = req.params
     const userId = req.user!.userId
 
-    const access = await getAccessibleChannel(channelId, userId)
+    const access = await getAccessibleChannel(channelId, userId, true)
     if (access.error !== undefined) {
       return res.status(access.error).json({ message: access.message })
     }
@@ -536,6 +538,9 @@ router.post('/:channelId/messages', async (req, res) => {
     if (teamMembership.length === 0) {
       return res.status(403).json({ message: 'Access denied to this channel' })
     }
+    if (teamMembership[0].role === TeamRole.VIEWER) {
+      return res.status(403).json({ message: VIEWER_MESSAGE })
+    }
 
     // Replies must target a top-level message in the same channel
     let threadParentAuthor: string | null = null
@@ -593,6 +598,9 @@ const setMessagePinned = (pinned: boolean) => async (req: express.Request, res: 
       .limit(1)
     if (teamMembership.length === 0) {
       return res.status(403).json({ message: 'Access denied to this channel' })
+    }
+    if (teamMembership[0].role === TeamRole.VIEWER) {
+      return res.status(403).json({ message: VIEWER_MESSAGE })
     }
 
     const updated = await db.update(messages)
