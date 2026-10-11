@@ -63,7 +63,6 @@ export default function DocumentPermissionsDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  // Add permission form state
   const [isAddingPermission, setIsAddingPermission] = useState(false)
   const [addType, setAddType] = useState<'user' | 'team'>('user')
   const [selectedRole, setSelectedRole] = useState<'viewer' | 'commenter' | 'editor' | 'admin'>('viewer')
@@ -124,7 +123,6 @@ export default function DocumentPermissionsDialog({
 
       await documentsApi.assignDocumentRole(documentId, assignmentData)
       
-      // Reset form
       setSelectedUser(null)
       setSelectedTeam('')
       setUserSearch('')
@@ -132,10 +130,8 @@ export default function DocumentPermissionsDialog({
       setSelectedRole('viewer')
       setIsAddingPermission(false)
       
-      // Refresh permissions
       await fetchPermissions()
       
-      // Notify parent component that permissions were updated
       onPermissionsUpdated?.()
     } catch (err: any) {
       console.error('Failed to add permission:', err)
@@ -155,10 +151,8 @@ export default function DocumentPermissionsDialog({
 
       await documentsApi.removeDocumentRole(documentId, removalData)
       
-      // Refresh permissions
       await fetchPermissions()
       
-      // Notify parent component that permissions were updated
       onPermissionsUpdated?.()
     } catch (err: any) {
       console.error('Failed to remove permission:', err)
@@ -214,7 +208,6 @@ export default function DocumentPermissionsDialog({
             </div>
           )}
 
-          {/* Owner Section */}
           {owner && (
             <Card>
               <CardHeader className="pb-3">
@@ -235,7 +228,6 @@ export default function DocumentPermissionsDialog({
             </Card>
           )}
 
-          {/* Permissions List */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <div>
@@ -310,7 +302,6 @@ export default function DocumentPermissionsDialog({
             </CardContent>
           </Card>
 
-          {/* Add Permission Form */}
           {isAddingPermission && canManagePermissions && (
             <Card>
               <CardHeader className="pb-3">

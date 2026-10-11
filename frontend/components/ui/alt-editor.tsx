@@ -1,11 +1,8 @@
-/*ts-nocheck*/
-
 
 
 class EditableBlock extends React.Component {
     constructor(props) {
         super(props);
-        // ...
         this.onKeyUpHandler = this.onKeyUpHandler.bind(this);
         this.openSelectMenuHandler = this.openSelectMenuHandler.bind(this);
         this.closeSelectMenuHandler = this.closeSelectMenuHandler.bind(this);
@@ -23,8 +20,6 @@ class EditableBlock extends React.Component {
             }
         };
     }
-
-    // ...
 
     onKeyUpHandler(e) {
         if (e.key === "/") {
@@ -82,8 +77,6 @@ class EditableBlock extends React.Component {
 }
 
 export default EditableBlock;
-
-// Imports
 
 const MENU_HEIGHT = 150;
 const allowedTags = [

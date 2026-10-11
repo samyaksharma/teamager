@@ -5,8 +5,7 @@ class CleanupService {
   private intervalId: NodeJS.Timeout | null = null
   private isRunning = false
 
-  // Run cleanup every 1 hour
-  private readonly CLEANUP_INTERVAL = 60 * 60 * 1000 // 1 hour in milliseconds
+  private readonly CLEANUP_INTERVAL = 60 * 60 * 1000
 
   start() {
     if (this.isRunning) {
@@ -16,10 +15,8 @@ class CleanupService {
     console.log('Starting cleanup service...')
     this.isRunning = true
 
-    // Run initial cleanup
     this.runCleanup()
 
-    // Schedule regular cleanups
     this.intervalId = setInterval(() => {
       this.runCleanup()
     }, this.CLEANUP_INTERVAL)
@@ -39,20 +36,16 @@ class CleanupService {
   private async runCleanup() {
     try {
       
-      // Clean expired tokens
       const expiredCount = await cleanupExpiredTokens()
       
-      // Clean old log files (keep 7 days)
       logger.cleanup(7)
       
-      // Skip logging routine cleanup to reduce log noise
     } catch (error) {
       console.error('Error during cleanup:', error)
       logger.error('Cleanup failed', { error: error instanceof Error ? error.message : String(error) })
     }
   }
 
-  // Manual cleanup trigger
   async manualCleanup() {
     return this.runCleanup()
   }

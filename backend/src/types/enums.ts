@@ -5,24 +5,20 @@
  * All enums use integer values for database storage and performance.
  */
 
-// =============================================================================
-// TASK ENUMS
-// =============================================================================
-
 export enum TaskPriority {
   LOW = 0,
   MEDIUM = 1,
   HIGH = 2,
-  CRITICAL = 3  // Adding critical for better distinction
+  CRITICAL = 3
 }
 
 export enum TaskStatus {
   BACKLOG = 0,
   TODO = 1,
   IN_PROGRESS = 2,
-  IN_REVIEW = 3,  // Adding review stage
+  IN_REVIEW = 3,
   DONE = 4,
-  CANCELLED = 5   // Adding cancelled for better task lifecycle
+  CANCELLED = 5
 }
 
 export enum TaskType {
@@ -31,12 +27,8 @@ export enum TaskType {
   FEATURE = 2,
   ENHANCEMENT = 3,
   DOCUMENTATION = 4,
-  EPIC = 5        // Adding epic for larger initiatives
+  EPIC = 5
 }
-
-// =============================================================================
-// ROLE ENUMS
-// =============================================================================
 
 export enum OrganizationRole {
   MEMBER = 0,
@@ -58,15 +50,11 @@ export enum DocumentRole {
   ADMIN = 3       // Higher number = more permissions
 }
 
-// =============================================================================
-// COMMUNICATION ENUMS
-// =============================================================================
-
 export enum ChannelType {
   TEXT = 0,
   VOICE = 1,
   ANNOUNCEMENT = 2,
-  PRIVATE = 3     // Adding private channels
+  PRIVATE = 3
 }
 
 export enum MessageType {
@@ -76,12 +64,8 @@ export enum MessageType {
   SYSTEM = 3      // For system messages like "user joined"
 }
 
-// =============================================================================
-// USER & SESSION ENUMS
-// =============================================================================
-
 export enum UserStatus {
-  PENDING = 0,    // Email not verified
+  PENDING = 0,
   ACTIVE = 1,
   SUSPENDED = 2,
   DEACTIVATED = 3
@@ -102,13 +86,6 @@ export enum InvitationStatus {
   CANCELLED = 4
 }
 
-// =============================================================================
-// UTILITY FUNCTIONS
-// =============================================================================
-
-/**
- * Convert enum value to human-readable string
- */
 export const EnumLabels = {
   TaskPriority: {
     [TaskPriority.LOW]: 'Low',
@@ -178,9 +155,6 @@ export const EnumLabels = {
   }
 } as const
 
-/**
- * Get enum options for dropdowns/forms
- */
 export const EnumOptions = {
   TaskPriority: Object.entries(EnumLabels.TaskPriority).map(([value, label]) => ({
     value: parseInt(value),
@@ -213,9 +187,6 @@ export const EnumOptions = {
   }))
 } as const
 
-/**
- * Permission checking utilities
- */
 export const hasPermission = {
   organization: (userRole: OrganizationRole, requiredRole: OrganizationRole): boolean => {
     return userRole >= requiredRole
@@ -230,9 +201,6 @@ export const hasPermission = {
   }
 }
 
-/**
- * Enum validation utilities
- */
 export const isValidEnum = {
   TaskPriority: (value: any): value is TaskPriority => {
     return Object.values(TaskPriority).includes(value)
@@ -258,10 +226,6 @@ export const isValidEnum = {
     return Object.values(DocumentRole).includes(value)
   }
 }
-
-// =============================================================================
-// EXPORT TYPES FOR FRONTEND
-// =============================================================================
 
 export type TaskPriorityType = keyof typeof TaskPriority
 export type TaskStatusType = keyof typeof TaskStatus  

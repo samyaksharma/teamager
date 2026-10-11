@@ -24,7 +24,6 @@ export const authApi = {
       })
       return response.data
     } catch (error) {
-      // Ensure errors are properly thrown without redirecting
       throw error
     }
   },
@@ -34,7 +33,6 @@ export const authApi = {
       const response = await authAxios.post('/api/auth/register', userData)
       return response.data
     } catch (error) {
-      // Ensure errors are properly thrown without redirecting
       throw error
     }
   },

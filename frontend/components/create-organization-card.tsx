@@ -32,20 +32,17 @@ export function CreateOrganizationCard() {
     setLoading(true)
 
     try {
-      // Use the organizationsApi to create the organization
       const response = await organizationsApi.createOrganization({ 
         name: orgName,
         industry,
         size
       });
 
-      // Store the organization name for the success message
       const orgData = response.organization || { name: orgName };
       
       setSuccess(true)
       setLoading(false)
 
-      // Redirect to the dashboard after a short delay
       setTimeout(() => {
         router.push(`/dashboard`)
         router.refresh()

@@ -24,7 +24,6 @@ export async function loadTaskForUser(taskId: string, userId: string, write = fa
   return { task } as const
 }
 
-// Which of these tasks can the user see (read access)?
 export async function visibleTaskIds(userId: string, taskIds: string[]): Promise<Set<string>> {
   if (taskIds.length === 0) return new Set()
   const direct = await db.select({ id: tasks.id }).from(tasks)

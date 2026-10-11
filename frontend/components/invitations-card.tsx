@@ -50,7 +50,6 @@ export function InvitationsCard() {
     setProcessingId(id)
     try {
       await invitationsApi.acceptInvitation(token)
-      // Remove the invitation from the list
       setInvitations(invitations.filter(inv => inv.id !== id))
       router.refresh()
     } catch (err: any) {
@@ -60,7 +59,6 @@ export function InvitationsCard() {
     }
   }
 
-  // Format date to be more readable
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', { 
@@ -70,7 +68,6 @@ export function InvitationsCard() {
     })
   }
 
-  // Check if there are any invitations to display
   if (!loading && invitations.length === 0) {
     return null
   }

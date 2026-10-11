@@ -39,7 +39,7 @@ export function TaskListView({ tasks, onEdit }: ViewProps) {
         case "status": return t.status
         case "priority": return t.priority
         case "assignee": return t.assignee?.name.toLowerCase() ?? "￿"
-        default: return t.dueDate ? new Date(t.dueDate).getTime() : Number.MAX_SAFE_INTEGER   // no date last
+        default: return t.dueDate ? new Date(t.dueDate).getTime() : Number.MAX_SAFE_INTEGER
       }
     }
     return [...tasks].sort((a, b) => {

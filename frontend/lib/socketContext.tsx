@@ -20,7 +20,6 @@ const SocketContext = createContext<SocketContextType>({
 export const useSocket = () => useContext(SocketContext)
 
 export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
-  // Keep track of joined rooms (for real-time context)
   const [joinedRooms, setJoinedRooms] = useState<Set<string>>(new Set())
   
   // Join a room (team, document, or chat channel)
@@ -37,13 +36,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   // Send message to a channel using the API instead of WebSockets
   const sendMessage = useCallback(async (roomId: string, message: string, sender: any) => {
     try {
-      // Check if this is a direct message or channel
       if (roomId.startsWith('user:')) {
         // Extract userId from the room ID (e.g., 'user:123' -> '123')
         const receiverId = roomId.split(':')[1]
         await directMessagesApi.sendMessage(receiverId, message)
       } else {
-        // Regular channel message
         await channelsApi.sendMessage(roomId, message)
       }
     } catch (error) {

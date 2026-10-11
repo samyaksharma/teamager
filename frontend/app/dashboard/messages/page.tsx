@@ -42,7 +42,6 @@ import { toast } from "sonner"
 export default function MessagesPage() {
   const { teams } = useAuth()
   const {
-    // Channel state
     channels,
     activeChannel,
     messages,
@@ -52,12 +51,10 @@ export default function MessagesPage() {
     createChannel,
     canCreateChannels,
 
-    // Direct message state
     directContacts,
     activeDirectContact,
     setActiveDirectContact,
 
-    // Shared state
     isLoading,
     error,
     isDirectMessageActive,
@@ -72,7 +69,6 @@ export default function MessagesPage() {
   const [canCreateChannelForTeams, setCanCreateChannelForTeams] = useState<Record<string, boolean>>({})
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Debounced server-side search within the active channel
   useEffect(() => {
     const query = searchQuery.trim()
     if (!query || !activeChannel) {
@@ -92,14 +88,12 @@ export default function MessagesPage() {
 
   const visibleMessages = searchQuery.trim() ? searchResults : messages
 
-  // Scroll to bottom of messages when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [messages])
 
-  // Check channel creation permissions for all teams
   useEffect(() => {
     const checkPermissions = async () => {
       const permissions: Record<string, boolean> = {}
@@ -121,7 +115,6 @@ export default function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teams])
 
-  // Handle send message
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
     if (messageInput.trim()) {
@@ -130,7 +123,6 @@ export default function MessagesPage() {
     }
   }
 
-  // Handle create channel
   const handleCreateChannel = async (channelData: {
     name: string
     teamId: string
@@ -148,10 +140,8 @@ export default function MessagesPage() {
     }
   }
 
-  // Check if user can create channels in any team
   const canCreateChannelInAnyTeam = Object.values(canCreateChannelForTeams).some(Boolean)
 
-  // Handle create channel button click
   const handleCreateChannelClick = () => {
     if (!canCreateChannelInAnyTeam) {
       toast.error('You need admin or moderator permissions to create channels')
@@ -160,7 +150,6 @@ export default function MessagesPage() {
     setShowCreateChannelDialog(true)
   }
 
-  // Filter channels and contacts based on search
   const filteredChannels = channels.filter(
     channel => channel.name.toLowerCase().includes(searchInput.toLowerCase())
   )
@@ -269,9 +258,8 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      {/* Main Chat Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile Message Type Selector */}
+        
         <div className="md:hidden flex border-b bg-background">
           <Button
             variant={isDirectMessageActive ? "ghost" : "default"}
@@ -291,14 +279,12 @@ export default function MessagesPage() {
           </Button>
         </div>
 
-        {/* Mobile Sidebar Toggle */}
         <div className="md:hidden p-2 border-b bg-background">
           <Button
             variant="outline"
             size="sm"
             className="w-full justify-start"
             onClick={() => {
-              // Toggle mobile sidebar
             }}
           >
             <Menu className="h-4 w-4 mr-2" />
@@ -306,7 +292,6 @@ export default function MessagesPage() {
           </Button>
         </div>
 
-        {/* Welcome screen */}
         {!activeChannel && !activeDirectContact && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -325,10 +310,9 @@ export default function MessagesPage() {
           </div>
         )}
 
-        {/* Channel View */}
         {activeChannel && !isDirectMessageActive && (
           <>
-            {/* Channel Header */}
+            
             <header className="flex h-12 items-center justify-between border-b bg-white px-4 dark:bg-gray-950">
               <div className="flex items-center">
                 <div className="flex items-center gap-2">
@@ -395,10 +379,9 @@ export default function MessagesPage() {
               </div>
             </header>
 
-            {/* Messages Area */}
             <ScrollArea className="flex-1 p-4">
               <div className="space-y-6">
-                {/* Day Separator */}
+                
                 <div className="relative flex items-center py-2">
                   <div className="flex-grow border-t"></div>
                   <span className="mx-4 flex-shrink text-xs text-gray-500">Today</span>
@@ -435,7 +418,6 @@ export default function MessagesPage() {
               </div>
             </ScrollArea>
 
-            {/* Message Input */}
             <div className="border-t p-4">
               <form onSubmit={handleSendMessage} className="rounded-lg border bg-white dark:bg-gray-950">
                 <div className="px-3 py-2">
@@ -469,16 +451,13 @@ export default function MessagesPage() {
           </>
         )}
 
-        {/* Direct Message View */}
         {isDirectMessageActive && activeDirectContact && (
           <DirectMessageView />
         )}
       </div>
 
-      {/* Thread Panel */}
       {!isDirectMessageActive && <ThreadPanel />}
 
-      {/* Create Channel Dialog */}
       <CreateChannelDialog
         open={showCreateChannelDialog}
         onOpenChange={setShowCreateChannelDialog}

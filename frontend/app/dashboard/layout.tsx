@@ -39,7 +39,6 @@ import { TeamagerLogo } from "@/components/teamager-logo"
 import { MessagesProvider } from "./messages/messagesContext"
 import { useAuth } from "@/lib/authContext"
 import { cn } from "@/lib/utils"
-// import { AuthGuard } from "@/components/auth-guard"
 
 interface NavItem {
   href: string
@@ -66,15 +65,12 @@ export default function DashboardLayout({
 
   const organizationName = currentOrganization?.name || "Teamager"
 
-  // Check if a link is active
   const isActive = (path: string) => {
     return pathname === path || pathname.startsWith(`${path}/`)
   }
 
-  // Check if we're on a document edit page
   const isDocumentEditPage = pathname.includes('/documents/') && pathname !== '/dashboard/documents'
 
-  // Navigation items
   const navItems: NavItem[] = [
     {
       href: "/dashboard",
@@ -117,17 +113,16 @@ export default function DashboardLayout({
   return (
     <MessagesProvider>
       <div className="flex min-h-screen flex-col w-full">
-        {/* Top Navigation Header */}
+        
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex h-14 items-center mx-4 justify-between md:justify-start md:gap-4">
-            {/* Left: Logo and Brand */}
+            
             <div className="flex items-center gap-2 px-4">
               <Link href="/dashboard" className="flex items-center gap-2 font-bold">
                 <TeamagerLogo className="h-6 w-6 flex-shrink-0" />
               </Link>
             </div>
 
-            {/* Center: Main Navigation (Hidden on mobile) */}
             <nav className="hidden md:flex flex-1 items-center justify-center space-x-1">
               {navItems.map((item) => {
                 const Icon = item.icon
@@ -149,12 +144,10 @@ export default function DashboardLayout({
               })}
             </nav>
 
-            {/* Right: Actions and Settings */}
             <div className="flex items-center gap-1 px-0 md:px-4">
-              {/* Search - Hidden on mobile */}
+              
               <GlobalSearch hotkey triggerClassName="h-8 w-8 hidden sm:flex" />
 
-              {/* Desktop Settings Menu - Hidden on mobile */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 hidden md:flex">
@@ -181,17 +174,13 @@ export default function DashboardLayout({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Mobile Right Section */}
               <div className="flex items-center gap-1 md:hidden">
                 <GlobalSearch triggerClassName="h-8 w-8" />
 
-                {/* Notifications */}
                 <NotificationBell />
 
-                {/* Theme Toggle */}
                 <ThemeToggle />
 
-                {/* Mobile Menu */}
                 <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                   <SheetTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -250,7 +239,6 @@ export default function DashboardLayout({
                 </Sheet>
               </div>
 
-              {/* Desktop Notifications & Theme - Visible on desktop */}
               <div className="hidden md:flex items-center gap-1">
                 <NotificationBell />
                 <ThemeToggle />
@@ -260,7 +248,6 @@ export default function DashboardLayout({
 
         </header>
 
-        {/* Mobile Toolbar - Sticky under header */}
         {isDocumentEditPage && (
           <div className="sticky top-14 z-40 md:hidden border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <nav className="flex items-center justify-around py-2 px-2">
@@ -328,7 +315,6 @@ export default function DashboardLayout({
           </div>
         )}
 
-        {/* Main Content */}
         <main className="flex-1">
           {children}
         </main>

@@ -99,7 +99,6 @@ interface Channel {
 }
 
 interface MessagesContextType {
-  // Channel state
   channels: Channel[]
   activeChannel: Channel | null
   messages: Message[]
@@ -118,7 +117,6 @@ interface MessagesContextType {
   createChannel: (channelData: { name: string, teamId: string, description?: string, isPrivate?: boolean, type?: number }) => Promise<Channel>
   canCreateChannels: (teamId: string) => Promise<{ canCreate: boolean, reason?: string }>
 
-  // Direct message state
   directContacts: User[]
   activeDirectContact: User | null
   directMessages: DirectMessage[]
@@ -127,7 +125,6 @@ interface MessagesContextType {
   markDirectMessageAsRead: (messageId: string) => Promise<void>
   markAllDirectMessagesAsRead: () => Promise<void>
 
-  // Shared state
   isLoading: boolean
   error: string | null
   isDirectMessageActive: boolean
@@ -135,7 +132,6 @@ interface MessagesContextType {
 }
 
 const MessagesContext = createContext<MessagesContextType>({
-  // Channel state
   channels: [],
   activeChannel: null,
   messages: [],
@@ -154,7 +150,6 @@ const MessagesContext = createContext<MessagesContextType>({
   createChannel: async () => ({} as Channel),
   canCreateChannels: async () => ({ canCreate: false }),
 
-  // Direct message state
   directContacts: [],
   activeDirectContact: null,
   directMessages: [],
@@ -163,7 +158,6 @@ const MessagesContext = createContext<MessagesContextType>({
   markDirectMessageAsRead: async () => {},
   markAllDirectMessagesAsRead: async () => {},
 
-  // Shared state
   isLoading: false,
   error: null,
   isDirectMessageActive: false,
@@ -176,24 +170,20 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
   const { joinRoom } = useSocket()
   const { user: authUser, teams } = useAuth()
 
-  // Shared state
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [isDirectMessageActive, setIsDirectMessageActive] = useState<boolean>(false)
 
-  // Channel state
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannelState] = useState<Channel | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [threadParent, setThreadParent] = useState<Message | null>(null)
   const [threadReplies, setThreadReplies] = useState<Message[]>([])
 
-  // Direct message state
   const [directContacts, setDirectContacts] = useState<User[]>([])
   const [activeDirectContact, setActiveDirectContactState] = useState<User | null>(null)
   const [directMessages, setDirectMessages] = useState<DirectMessage[]>([])
 
-  // Current user from auth context
   const currentUser = authUser ? {
     id: authUser.id,
     name: authUser.name,
@@ -206,14 +196,12 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
   
   const [currentTeamId, setCurrentTeamId] = useState<string | null>(null)
 
-  // Load channels for all teams user is part of
   useEffect(() => {
     const fetchChannels = async () => {
       setIsLoading(true)
       try {
         let allChannels: Channel[] = []
         
-        // Fetch channels for all teams
         for (const team of teams) {
           try {
             const teamChannels = await channelsApi.getAllChannels(team.id)
@@ -224,7 +212,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
         
         setChannels(allChannels)
 
-        // Set default channel as active if none is selected
         if (allChannels.length > 0 && !activeChannel) {
           const defaultChannel = allChannels.find(c => c.isDefault) || allChannels[0]
           setActiveChannelState(defaultChannel)
@@ -232,7 +219,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
       } catch (err) {
         setError('Failed to load channels')
 
-        // No fallback data - show empty state instead
         setChannels([])
       } finally {
         setIsLoading(false)
@@ -280,26 +266,21 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     return () => clearInterval(intervalId)
   }, [authUser?.id, teams, activeContactId])
 
-  // Load channel messages when active channel changes
   useEffect(() => {
     if (!activeChannel || isDirectMessageActive) return
 
     const fetchMessages = async () => {
       setIsLoading(true)
       try {
-        // Join the socket.io room for this channel
         joinRoom(activeChannel.id)
 
-        // Fetch messages from API
         const response = await channelsApi.getMessages(activeChannel.id)
         setMessages(response.map(normalizeMessage))
 
-        // Mark channel as read
         markChannelAsRead(activeChannel.id)
       } catch (err) {
         setError('Failed to load messages')
 
-        // No fallback data - show empty state instead
         setMessages([])
       } finally {
         setIsLoading(false)
@@ -309,7 +290,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     fetchMessages()
   }, [activeChannel, isDirectMessageActive, joinRoom])
 
-  // Load direct messages when active contact changes
   useEffect(() => {
     if (!activeDirectContact || !isDirectMessageActive) return
 
@@ -319,7 +299,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
         const response = await directMessagesApi.getMessagesWithUser(activeDirectContact.id)
         setDirectMessages(response.map(normalizeDirectMessage))
 
-        // Mark all messages as read
         await markAllDirectMessagesAsRead()
       } catch (err) {
         setError('Failed to load direct messages')
@@ -346,10 +325,8 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
       }
     };
     
-    // Initial fetch
     fetchNewMessages();
     
-    // Set up polling interval (every 3 seconds)
     const intervalId = setInterval(fetchNewMessages, 3000);
     
     return () => {
@@ -361,7 +338,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     if (!isDirectMessageActive || !activeDirectContact) return
     
-    // Refresh the conversation and mark anything newly received as read
     const fetchNewDirectMessages = async () => {
       try {
         const latest = (await directMessagesApi.getMessagesWithUser(activeDirectContact.id)).map(normalizeDirectMessage)
@@ -376,10 +352,8 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
       }
     };
     
-    // Initial fetch
     fetchNewDirectMessages();
     
-    // Set up polling interval (every 3 seconds)
     const intervalId = setInterval(fetchNewDirectMessages, 3000);
     
     return () => {
@@ -398,7 +372,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
       if (Math.random() > 0.9) {
         setDirectContacts(prevContacts => {
           return prevContacts.map(contact => {
-            // 10% chance to toggle status
             if (Math.random() > 0.9) {
               const newStatus = contact.status === 'online' ? 'offline' : 'online'
               return { ...contact, status: newStatus }
@@ -409,7 +382,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
       }
     }
     
-    // Set up polling interval (every 30 seconds)
     const intervalId = setInterval(updateUserStatuses, 30000)
     
     return () => {
@@ -417,7 +389,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     }
   }, [])
 
-  // Channel functions
   const setActiveChannel = (channelId: string) => {
     const channel = channels.find(c => c.id === channelId)
     if (channel) {
@@ -544,7 +515,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     }
   }
 
-  // Direct message functions
   const setActiveDirectContact = (userId: string) => {
     const contact = directContacts.find(c => c.id === userId)
     if (contact) {
@@ -566,7 +536,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
 
   const markDirectMessageAsRead = async (messageId: string) => {
     try {
-      // Update locally
       setDirectMessages(prevMessages =>
         prevMessages.map(message =>
           message.id === messageId
@@ -575,7 +544,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
         )
       )
 
-      // Update via API
       await directMessagesApi.markAsRead(messageId)
     } catch (err) {
     }
@@ -585,7 +553,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
     if (!activeDirectContact) return
 
     try {
-      // Update locally
       setDirectMessages(prevMessages =>
         prevMessages.map(message =>
           message.senderId === activeDirectContact.id && !message.readAt
@@ -594,10 +561,8 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
         )
       )
 
-      // Update via API
       await directMessagesApi.markAllAsRead(activeDirectContact.id)
 
-      // Update unread count in contacts
       setDirectContacts(prevContacts =>
         prevContacts.map(contact =>
           contact.id === activeDirectContact.id
@@ -620,7 +585,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
   return (
     <MessagesContext.Provider
       value={{
-        // Channel state
         channels,
         activeChannel,
         messages,
@@ -639,7 +603,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
         createChannel,
         canCreateChannels,
 
-        // Direct message state
         directContacts,
         activeDirectContact,
         directMessages,
@@ -648,7 +611,6 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
         markDirectMessageAsRead,
         markAllDirectMessagesAsRead,
 
-        // Shared state
         isLoading,
         error,
         isDirectMessageActive,

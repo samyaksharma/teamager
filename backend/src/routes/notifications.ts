@@ -9,7 +9,6 @@ router.use(verifyToken)
 
 const MODULES = ['documents', 'tasks', 'messages'] as const
 
-// List the current user's notifications (activity feed), newest first
 router.get('/', async (req, res) => {
   try {
     const userId = req.user!.userId
@@ -45,7 +44,6 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Mark all as read
 router.put('/read-all', async (req, res) => {
   try {
     await db.update(notifications)
@@ -58,7 +56,6 @@ router.put('/read-all', async (req, res) => {
   }
 })
 
-// Get per-module settings
 router.get('/settings', async (req, res) => {
   try {
     const row = await db.select().from(notificationSettings)
@@ -74,7 +71,6 @@ router.get('/settings', async (req, res) => {
   }
 })
 
-// Update per-module settings
 router.put('/settings', async (req, res) => {
   try {
     const userId = req.user!.userId
@@ -97,7 +93,6 @@ router.put('/settings', async (req, res) => {
   }
 })
 
-// Mark one as read
 router.put('/:id/read', async (req, res) => {
   try {
     const updated = await db.update(notifications)

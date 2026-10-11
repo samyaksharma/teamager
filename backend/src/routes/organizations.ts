@@ -6,15 +6,12 @@ import { OrganizationRole, TeamRole } from '../types/enums'
 
 const router = express.Router()
 
-// Apply auth middleware to all routes
 router.use(verifyToken)
 
-// Get all organizations - matches frontend /api/organizations
 router.get('/', async (req, res) => {
   try {
     const userId = req.user!.userId
 
-    // Get user's organization or all if admin
     const user = await db.select()
       .from(users)
       .where(eq(users.id, userId))
@@ -24,8 +21,6 @@ router.get('/', async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
-    // Get organizations through direct membership
-    
     const orgs = await db.select({
       id: organizations.id,
       name: organizations.name,
@@ -42,7 +37,6 @@ router.get('/', async (req, res) => {
         eq(organizationUsers.userId, userId),
         eq(organizationUsers.isActive, true)
       ))
-    
 
     res.json(orgs)
   } catch (error) {
@@ -51,13 +45,11 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Get organization by ID - matches frontend /api/organizations/{orgId}
 router.get('/:orgId', async (req, res) => {
   try {
     const { orgId } = req.params
     const userId = req.user!.userId
 
-    // Check if user belongs to this organization
     const userOrgAccess = await db.select()
       .from(organizationUsers)
       .where(and(
@@ -71,7 +63,6 @@ router.get('/:orgId', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this organization' })
     }
 
-    // Get organization details
     const org = await db.select()
       .from(organizations)
       .where(eq(organizations.id, orgId))
@@ -88,7 +79,6 @@ router.get('/:orgId', async (req, res) => {
   }
 })
 
-// Create organization - matches frontend POST /api/organizations
 router.post('/', async (req, res) => {
   try {
     // `role` is the person's job role from the signup form; it doesn't change what they can do:
@@ -101,7 +91,6 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Organization name is required (max 255 characters)' })
     }
 
-    // Verify user exists
     const user = await db.select()
       .from(users)
       .where(eq(users.id, userId))
@@ -128,7 +117,7 @@ router.post('/', async (req, res) => {
           role: OrganizationRole.OWNER,
           department: typeof department === 'string' ? department.slice(0, 64) : null,
           jobTitle: typeof jobTitle === 'string' ? jobTitle.slice(0, 100) : null,
-          invitedBy: userId // Self-invited when creating org
+          invitedBy: userId
         })
 
       const [newTeam] = await tx.insert(teams)
@@ -142,7 +131,7 @@ router.post('/', async (req, res) => {
         .values({
           userId,
           teamId: newTeam.id,
-          role: TeamRole.LEAD // Team lead role
+          role: TeamRole.LEAD
         })
 
       return newOrg
@@ -155,14 +144,12 @@ router.post('/', async (req, res) => {
   }
 })
 
-// Update organization - matches frontend PUT /api/organizations/{orgId}
 router.put('/:orgId', async (req, res) => {
   try {
     const { orgId } = req.params
     const { name, industry, size } = req.body
     const userId = req.user!.userId
 
-    // Check if user has admin/owner rights in this organization
     const userOrgAccess = await db.select()
       .from(organizationUsers)
       .where(and(
@@ -176,7 +163,6 @@ router.put('/:orgId', async (req, res) => {
       return res.status(403).json({ message: 'Access denied: admin rights required' })
     }
 
-    // Build update object
     const updateData: any = {}
     if (name !== undefined) {
       const trimmed = typeof name === 'string' ? name.trim() : ''
@@ -199,11 +185,10 @@ router.put('/:orgId', async (req, res) => {
     }
     updateData.updatedAt = new Date()
 
-    if (Object.keys(updateData).length === 1) { // Only updatedAt
+    if (Object.keys(updateData).length === 1) {
       return res.status(400).json({ message: 'No update data provided' })
     }
 
-    // Update organization
     const updatedOrg = await db.update(organizations)
       .set(updateData)
       .where(eq(organizations.id, orgId))
@@ -220,13 +205,11 @@ router.put('/:orgId', async (req, res) => {
   }
 })
 
-// Delete organization - matches frontend DELETE /api/organizations/{orgId}
 router.delete('/:orgId', async (req, res) => {
   try {
     const { orgId } = req.params
     const userId = req.user!.userId
 
-    // Check if user has owner rights in this organization (only owners can delete)
     const userOrgAccess = await db.select()
       .from(organizationUsers)
       .where(and(

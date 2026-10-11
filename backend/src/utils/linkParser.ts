@@ -50,7 +50,6 @@ export function parseLink(input: string): ParsedLink | null {
     return { url: clean, provider: 'gitlab', kind: 'repo', label: project }
   }
 
-  // File storage
   if (host === 'drive.google.com' || host === 'docs.google.com') {
     return { url: clean, provider: 'gdrive', kind: 'file', label: host === 'docs.google.com' ? 'Google Doc' : 'Google Drive file' }
   }

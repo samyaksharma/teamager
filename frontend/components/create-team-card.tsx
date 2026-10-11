@@ -39,7 +39,6 @@ export function CreateTeamCard() {
       setSuccess(true)
       setLoading(false)
 
-      // Redirect to the team page after a short delay
       setTimeout(() => {
         router.push(`/dashboard`)
         router.refresh()

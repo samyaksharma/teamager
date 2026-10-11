@@ -20,10 +20,8 @@ const parseTeamRole = (value: unknown): TeamRole | null => {
 
 const router = express.Router()
 
-// Apply auth middleware to all routes
 router.use(verifyToken)
 
-// Get user's teams
 router.get('/', async (req, res) => {
   try {
     const userId = req.user!.userId
@@ -48,13 +46,11 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Get team details
 router.get('/:teamId', async (req, res) => {
   try {
     const { teamId } = req.params
     const userId = req.user!.userId
 
-    // Check if user is member of the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -67,7 +63,6 @@ router.get('/:teamId', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this team' })
     }
 
-    // Get team details
     const team = await db.select({
       id: teams.id,
       name: teams.name,
@@ -84,7 +79,6 @@ router.get('/:teamId', async (req, res) => {
       return res.status(404).json({ message: 'Team not found' })
     }
 
-    // Get team members
     const members = await db.select({
       id: users.id,
       name: users.name,
@@ -108,7 +102,6 @@ router.get('/:teamId', async (req, res) => {
   }
 })
 
-// Create team
 router.post('/', async (req, res) => {
   try {
     const { name, organizationId } = req.body
@@ -118,7 +111,6 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Team name is required' })
     }
 
-    // Create team
     const newTeam = await db.insert(teams)
       .values({
         name,
@@ -126,12 +118,11 @@ router.post('/', async (req, res) => {
       })
       .returning()
 
-    // Add creator as team lead
     await db.insert(teamUsers)
       .values({
         userId,
         teamId: newTeam[0].id,
-        role: TeamRole.LEAD // Team lead role
+        role: TeamRole.LEAD
       })
 
     res.status(201).json({
@@ -144,7 +135,6 @@ router.post('/', async (req, res) => {
   }
 })
 
-// Update team
 router.put('/:teamId', async (req, res) => {
   try {
     const { teamId } = req.params
@@ -155,13 +145,12 @@ router.put('/:teamId', async (req, res) => {
       return res.status(400).json({ message: 'Team name is required (max 255 characters)' })
     }
 
-    // Check if user is lead of the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
         eq(teamUsers.teamId, teamId),
         eq(teamUsers.userId, userId),
-        eq(teamUsers.role, TeamRole.LEAD) // Team lead role
+        eq(teamUsers.role, TeamRole.LEAD)
       ))
       .limit(1)
 
@@ -184,7 +173,6 @@ router.put('/:teamId', async (req, res) => {
   }
 })
 
-// Add team member
 router.post('/:teamId/members', async (req, res) => {
   try {
     const { teamId } = req.params
@@ -192,12 +180,10 @@ router.post('/:teamId/members', async (req, res) => {
     const role = parseTeamRole(requestedRole)
     const currentUserId = req.user!.userId
 
-
     if (!newUserId && !email) {
       return res.status(400).json({ message: 'Either userId or email is required' })
     }
 
-    // Check if current user is lead or contributor of the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -206,12 +192,10 @@ router.post('/:teamId/members', async (req, res) => {
       ))
       .limit(1)
 
-
     if (teamMembership.length === 0) {
       return res.status(403).json({ message: 'You are not a member of this team' })
     }
 
-    // Only team leads and contributors can add members
     if (teamMembership[0].role !== TeamRole.LEAD && teamMembership[0].role !== TeamRole.CONTRIBUTOR) {
       return res.status(403).json({ message: 'Only team leads and contributors can add members' })
     }
@@ -224,7 +208,6 @@ router.post('/:teamId/members', async (req, res) => {
       return res.status(403).json({ message: 'Only team leads can grant the contributor or lead role' })
     }
 
-    // Get target user ID (either from provided userId or by looking up email)
     let targetUserId = newUserId
     if (!targetUserId && email) {
       const user = await db.select({ id: users.id })
@@ -238,7 +221,6 @@ router.post('/:teamId/members', async (req, res) => {
       targetUserId = user[0].id
     }
 
-    // Check if user is already a member
     const existingMember = await db.select()
       .from(teamUsers)
       .where(and(
@@ -251,7 +233,6 @@ router.post('/:teamId/members', async (req, res) => {
       return res.status(400).json({ message: 'User is already a team member' })
     }
 
-    // Add user to team
     const newMember = await db.insert(teamUsers)
       .values({
         userId: targetUserId,
@@ -261,7 +242,6 @@ router.post('/:teamId/members', async (req, res) => {
       })
       .returning()
 
-    // Get user details for response
     const userDetails = await db.select({
       id: users.id,
       name: users.name,
@@ -286,7 +266,6 @@ router.post('/:teamId/members', async (req, res) => {
   }
 })
 
-// Update member role
 router.put('/:teamId/members/:memberId', async (req, res) => {
   try {
     const { teamId, memberId } = req.params
@@ -297,13 +276,12 @@ router.put('/:teamId/members/:memberId', async (req, res) => {
       return res.status(400).json({ message: 'Invalid role' })
     }
 
-    // Check if current user is lead of the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
         eq(teamUsers.teamId, teamId),
         eq(teamUsers.userId, currentUserId),
-        eq(teamUsers.role, TeamRole.LEAD) // Team lead role
+        eq(teamUsers.role, TeamRole.LEAD)
       ))
       .limit(1)
 
@@ -346,13 +324,11 @@ router.put('/:teamId/members/:memberId', async (req, res) => {
   }
 })
 
-// Get team members - matches frontend GET /api/teams/{teamId}/members
 router.get('/:teamId/members', async (req, res) => {
   try {
     const { teamId } = req.params
     const userId = req.user!.userId
 
-    // Check if user is member of the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -365,7 +341,6 @@ router.get('/:teamId/members', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this team' })
     }
 
-    // Get team members
     const members = await db.select({
       id: users.id,
       name: users.name,
@@ -385,19 +360,17 @@ router.get('/:teamId/members', async (req, res) => {
   }
 })
 
-// Remove team member
 router.delete('/:teamId/members/:memberId', async (req, res) => {
   try {
     const { teamId, memberId } = req.params
     const currentUserId = req.user!.userId
 
-    // Check if current user is lead of the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
         eq(teamUsers.teamId, teamId),
         eq(teamUsers.userId, currentUserId),
-        eq(teamUsers.role, TeamRole.LEAD) // Team lead role
+        eq(teamUsers.role, TeamRole.LEAD)
       ))
       .limit(1)
 

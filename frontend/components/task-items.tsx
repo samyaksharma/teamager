@@ -349,7 +349,6 @@ export function TaskItems({ taskId, users, onChanged }: TaskItemsProps) {
   )
 }
 
-// Compact progress badges for task cards
 export function TaskProgress({ task }: { task: { subtaskTotal?: number; subtaskDone?: number; checklistTotal?: number; checklistDone?: number } }) {
   const subTotal = task.subtaskTotal ?? 0
   const checkTotal = task.checklistTotal ?? 0

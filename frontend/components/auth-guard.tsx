@@ -42,18 +42,17 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   }
 
   if (!isAuthed) {
-    return null // Router push will handle redirect
+    return null
   }
 
   return <>{children}</>
 }
 
-// Hook for checking auth state in components - now uses context
 export function useAuth() {
   const { user, isLoading, isAuthenticated } = useAuthContext()
   return { 
     isLoading, 
     isAuthenticated, 
-    user: user ? { user } : null // Maintain backward compatibility
+    user: user ? { user } : null
   }
 }

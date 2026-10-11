@@ -1,4 +1,3 @@
-// Final schema with enum imports - replaces current schema.ts after migration
 import {
   pgTable,
   uuid,
@@ -24,7 +23,6 @@ import {
   InvitationStatus
 } from "../types/enums"
 
-// Organizations
 export const organizations = pgTable("organization", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -34,7 +32,6 @@ export const organizations = pgTable("organization", {
   updatedAt: timestamp("updated_at").defaultNow().notNull()
 })
 
-// Users
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 120 }).notNull(),
@@ -48,7 +45,6 @@ export const users = pgTable("users", {
   emailVerified: boolean("email_verified").default(false).notNull()
 })
 
-// Organization membership
 export const organizationUsers = pgTable("organization_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -67,7 +63,6 @@ export const organizationUsers = pgTable("organization_users", {
   userOrgUnique: unique().on(table.userId, table.organizationId)
 }))
 
-// Verification tokens
 export const verificationTokens = pgTable("verification_tokens", {
   id: serial("id").primaryKey(),
   userId: uuid("user_id")
@@ -78,7 +73,6 @@ export const verificationTokens = pgTable("verification_tokens", {
   createdAt: timestamp("created_at").defaultNow().notNull()
 })
 
-// Refresh tokens
 export const refreshTokens = pgTable("refresh_tokens", {
   id: serial("id").primaryKey(),
   userId: uuid("user_id")
@@ -101,7 +95,6 @@ export const refreshTokens = pgTable("refresh_tokens", {
   revokeReason: varchar("revoke_reason", { length: 100 })
 })
 
-// Teams
 export const teams = pgTable("team", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -111,7 +104,6 @@ export const teams = pgTable("team", {
   deletedBy: uuid("deleted_by").references(() => users.id)
 })
 
-// Organization invitations
 export const organizationInvitations = pgTable("organization_invitation", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id")
@@ -132,7 +124,6 @@ export const organizationInvitations = pgTable("organization_invitation", {
   deletedBy: uuid("deleted_by").references(() => users.id)
 })
 
-// Team users
 export const teamUsers = pgTable("team_users", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -148,7 +139,6 @@ export const teamUsers = pgTable("team_users", {
   userTeamUnique: unique().on(table.userId, table.teamId)
 }))
 
-// Channels
 export const channels = pgTable("channel", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
@@ -164,7 +154,6 @@ export const channels = pgTable("channel", {
     .references(() => users.id)
 })
 
-// Messages
 export const messages = pgTable("message", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -179,11 +168,9 @@ export const messages = pgTable("message", {
   pinnedBy: uuid("pinned_by").references(() => users.id, { onDelete: "set null" }),
   // Thread reply: points at the top-level message being replied to
   parentId: uuid("parent_id"),
-  // Task created from this message
   taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" })
 })
 
-// Message reactions
 export const messageReactions = pgTable("message_reaction", {
   id: uuid("id").defaultRandom().primaryKey(),
   messageId: uuid("message_id")
@@ -198,7 +185,6 @@ export const messageReactions = pgTable("message_reaction", {
   reactionUnique: unique().on(table.messageId, table.userId, table.emoji)
 }))
 
-// Direct messages
 export const directMessages = pgTable("direct_message", {
   id: uuid("id").defaultRandom().primaryKey(),
   content: text("content").notNull(),
@@ -214,7 +200,6 @@ export const directMessages = pgTable("direct_message", {
   deletedBy: uuid("deleted_by").references(() => users.id)
 })
 
-// Tasks
 export const tasks = pgTable("task", {
   id: uuid("id").defaultRandom().primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -235,7 +220,6 @@ export const tasks = pgTable("task", {
   position: integer("position")
 })
 
-// Task checklist items
 export const taskChecklistItems = pgTable("task_checklist_item", {
   id: uuid("id").defaultRandom().primaryKey(),
   taskId: uuid("task_id")
@@ -249,7 +233,6 @@ export const taskChecklistItems = pgTable("task_checklist_item", {
   taskPositionIdx: index("task_checklist_item_task_idx").on(table.taskId, table.position)
 }))
 
-// Document version history (HTML snapshots)
 export const documentVersions = pgTable("document_version", {
   id: uuid("id").defaultRandom().primaryKey(),
   documentId: uuid("document_id")
@@ -266,7 +249,6 @@ export const documentVersions = pgTable("document_version", {
   documentCreatedIdx: index("document_version_doc_created_idx").on(table.documentId, table.createdAt)
 }))
 
-// Task teams junction table
 export const taskTeams = pgTable("task_team", {
   id: uuid("id").defaultRandom().primaryKey(),
   taskId: uuid("task_id")
@@ -280,7 +262,6 @@ export const taskTeams = pgTable("task_team", {
   taskTeamUnique: unique().on(table.taskId, table.teamId)
 }))
 
-// Task comments
 export const taskComments = pgTable("task_comment", {
   id: uuid("id").primaryKey(),
   taskId: uuid("task_id")
@@ -293,7 +274,6 @@ export const taskComments = pgTable("task_comment", {
   createdAt: timestamp("created_at").defaultNow().notNull()
 })
 
-// Documents
 export const documents = pgTable("document", {
   id: uuid("id").defaultRandom().primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -312,7 +292,6 @@ export const documents = pgTable("document", {
   deletedBy: uuid("deleted_by").references(() => users.id)
 })
 
-// Document roles
 export const documentRoles = pgTable("document_roles", {
   id: uuid("id").defaultRandom().primaryKey(),
   documentId: uuid("document_id")
@@ -326,7 +305,6 @@ export const documentRoles = pgTable("document_roles", {
   uniqueTeam: unique().on(table.documentId, table.teamId)
 }))
 
-// Document comments
 export const documentComments = pgTable("document_comment", {
   id: uuid("id").defaultRandom().primaryKey(),
   documentId: uuid("document_id")
@@ -337,7 +315,6 @@ export const documentComments = pgTable("document_comment", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  // Reply to a top-level comment
   parentId: uuid("parent_id"),
   // The document text this comment/suggestion refers to
   quote: text("quote"),
@@ -350,7 +327,6 @@ export const documentComments = pgTable("document_comment", {
   resolvedAt: timestamp("resolved_at")
 })
 
-// In-app notifications
 export const notifications = pgTable("notification", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -379,8 +355,6 @@ export const notificationSettings = pgTable("notification_setting", {
   messages: boolean("messages").default(true).notNull()
 })
 
-
-// External links on tasks (git pull requests/commits/issues, shared files)
 export const taskLinks = pgTable("task_link", {
   id: uuid("id").defaultRandom().primaryKey(),
   taskId: uuid("task_id")
@@ -398,7 +372,6 @@ export const taskLinks = pgTable("task_link", {
   taskUrlUnique: unique().on(table.taskId, table.url)
 }))
 
-// Secret tokens for calendar (.ics) subscriptions
 export const calendarFeedTokens = pgTable("calendar_feed_token", {
   userId: uuid("user_id")
     .primaryKey()
@@ -407,8 +380,6 @@ export const calendarFeedTokens = pgTable("calendar_feed_token", {
   createdAt: timestamp("created_at").defaultNow().notNull()
 })
 
-
-// Saved task filters ("views"), per user
 export const taskSavedViews = pgTable("task_saved_view", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -422,8 +393,6 @@ export const taskSavedViews = pgTable("task_saved_view", {
   userNameUnique: unique().on(table.userId, table.name)
 }))
 
-
-// People mentioned (@username) in a channel message
 export const messageMentions = pgTable("message_mention", {
   id: uuid("id").defaultRandom().primaryKey(),
   messageId: uuid("message_id")
@@ -437,13 +406,11 @@ export const messageMentions = pgTable("message_mention", {
   mentionUnique: unique().on(table.messageId, table.userId)
 }))
 
-// Links from a task to a document or a channel message
 export const taskReferences = pgTable("task_reference", {
   id: uuid("id").defaultRandom().primaryKey(),
   taskId: uuid("task_id")
     .notNull()
     .references(() => tasks.id, { onDelete: "cascade" }),
-  // 'document' | 'message'
   kind: varchar("kind", { length: 16 }).notNull(),
   // Document or message id. Not a foreign key (it points at one of two tables), so unresolvable rows are skipped on read.
   targetId: uuid("target_id").notNull(),

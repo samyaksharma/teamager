@@ -92,7 +92,7 @@ This is an automated security notification.
         break
         
       default:
-        return // Unknown action, skip notification
+        return
     }
     
     await sendEmail(email, subject, message)

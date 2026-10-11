@@ -14,7 +14,6 @@ interface MobileNavProps {
 export function MobileNav({ activeDocument, setActiveDocument }: MobileNavProps) {
   const [isOpen, setIsOpen] = useState(false)
 
-  // Close the mobile nav when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
@@ -27,7 +26,6 @@ export function MobileNav({ activeDocument, setActiveDocument }: MobileNavProps)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [isOpen])
 
-  // Prevent body scroll when nav is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden"
@@ -52,7 +50,7 @@ export function MobileNav({ activeDocument, setActiveDocument }: MobileNavProps)
         <div className="flex h-14 items-center justify-between border-b px-4">
           <div className="flex items-center gap-2 font-bold">
             <TeamagerLogo className="h-5 w-5" />
-            {/* Teamager */}
+            
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsOpen(false)}>
             <X className="h-4 w-4" />

@@ -8,16 +8,13 @@ import { TaskStatus, TaskPriority, TaskType } from '../types/enums'
 
 const router = express.Router()
 
-// Apply auth middleware to all routes
 router.use(verifyToken)
 
-// Get tasks - matches frontend GET /api/tasks with various query parameters
 router.get('/', async (req, res) => {
   try {
     const { teamId, organizationId, assignedTo, status } = req.query
     const userId = req.user!.userId
 
-    // Get user's accessible teams and organization
     const user = await db.select()
       .from(users)
       .where(eq(users.id, userId))
@@ -33,7 +30,6 @@ router.get('/', async (req, res) => {
 
     const teamIds = userTeams.map(ut => ut.teamId)
 
-    // Get accessible task IDs through task-team junction
     let accessibleTaskIds: string[] = []
     if (teamIds.length > 0) {
       const taskTeamRecords = await db.select({ taskId: taskTeams.taskId })
@@ -42,20 +38,16 @@ router.get('/', async (req, res) => {
       accessibleTaskIds = taskTeamRecords.map(tt => tt.taskId)
     }
 
-    // Build query conditions
     const conditions: any[] = []
 
-    // Base access filter
     conditions.push(
       or(
-        // Tasks from user's teams (via taskTeam junction)
         accessibleTaskIds.length > 0 ? sql`${tasks.id} IN ${accessibleTaskIds}` : sql`1=0`,
         // Personal tasks created by user (not associated with any team)
         and(
           eq(tasks.createdBy, userId),
           isNull(tasks.organizationId)
         ),
-        // Tasks assigned to user
         eq(tasks.assignedTo, userId)
       )
     )
@@ -63,9 +55,7 @@ router.get('/', async (req, res) => {
     // Sub-items are shown inside their parent task, not as top-level tasks
     conditions.push(isNull(tasks.parentId))
 
-    // Apply filters
     if (teamId) {
-      // Get tasks associated with specific team
       const teamSpecificTaskIds = await db.select({ taskId: taskTeams.taskId })
         .from(taskTeams)
         .where(eq(taskTeams.teamId, teamId as string))
@@ -94,7 +84,6 @@ router.get('/', async (req, res) => {
       conditions.push(eq(tasks.status, statusNum))
     }
 
-    // Execute query
     const tasksData = await db.select({
       id: tasks.id,
       title: tasks.title,
@@ -115,7 +104,6 @@ router.get('/', async (req, res) => {
       .where(and(...conditions))
       .orderBy(sql`${tasks.position} asc nulls last`, tasks.dueDate, tasks.priority)
 
-    // Get assignee details for each task
     const userIds = tasksData
       .map(t => t.assignedTo)
       .filter(id => id !== null) as string[]
@@ -147,7 +135,6 @@ router.get('/', async (req, res) => {
       }).from(taskChecklistItems).where(inArray(taskChecklistItems.taskId, taskIds)).groupBy(taskChecklistItems.taskId)
     ])
 
-    // Merge assignee data
     const tasksWithAssignees = tasksData.map(task => {
       const subs = subtaskCounts.find(c => c.id === task.id)
       const checks = checklistCounts.find(c => c.id === task.id)
@@ -168,13 +155,11 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Get task by ID - matches frontend GET /api/tasks/{taskId}
 router.get('/:taskId', async (req, res) => {
   try {
     const { taskId } = req.params
     const userId = req.user!.userId
 
-    // Get task with related data
     const task = await db.select({
       id: tasks.id,
       title: tasks.title,
@@ -201,15 +186,12 @@ router.get('/:taskId', async (req, res) => {
 
     const taskData = task[0]
 
-    // Check access permissions
     let hasAccess = false
 
-    // Creator or assignee has access
     if (taskData.createdBy === userId || taskData.assignedTo === userId) {
       hasAccess = true
     }
 
-    // Check team access via taskTeams junction
     if (!hasAccess) {
       const userTeams = await db.select({ teamId: teamUsers.teamId })
         .from(teamUsers)
@@ -229,7 +211,6 @@ router.get('/:taskId', async (req, res) => {
       }
     }
 
-    // Check organization access via user's teams
     if (!hasAccess && taskData.organizationId) {
       const userTeams = await db.select({ orgId: teams.organizationId })
         .from(teamUsers)
@@ -247,7 +228,6 @@ router.get('/:taskId', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this task' })
     }
 
-    // Get assignee details
     let assignee = null
     if (taskData.assignedTo) {
       const assigneeData = await db.select({
@@ -273,7 +253,6 @@ router.get('/:taskId', async (req, res) => {
   }
 })
 
-// Create task - matches frontend POST /api/tasks
 router.post('/', async (req, res) => {
   try {
     const { 
@@ -293,15 +272,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Task title is required' })
     }
 
-    // Determine teams to associate with task
     let allTeamIds: string[] = []
     if (teamId) allTeamIds.push(teamId)
     if (teamIds && Array.isArray(teamIds)) {
       allTeamIds = [...allTeamIds, ...teamIds]
     }
-    allTeamIds = [...new Set(allTeamIds)] // Remove duplicates
+    allTeamIds = [...new Set(allTeamIds)]
 
-    // Verify team access
     if (allTeamIds.length > 0) {
       const userTeams = await db.select({ teamId: teamUsers.teamId })
         .from(teamUsers)
@@ -322,7 +299,6 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Create task
     const newTask = await db.insert(tasks)
       .values({
         title,
@@ -336,7 +312,6 @@ router.post('/', async (req, res) => {
       })
       .returning()
 
-    // Create task-team associations
     if (allTeamIds.length > 0) {
       const taskTeamValues = allTeamIds.map(tid => ({
         taskId: newTask[0].id,
@@ -347,7 +322,6 @@ router.post('/', async (req, res) => {
         .values(taskTeamValues)
     }
 
-    // Get created task with related data
     const taskWithData = await db.select({
       id: tasks.id,
       title: tasks.title,
@@ -372,7 +346,6 @@ router.post('/', async (req, res) => {
       await notify({ userId: assignedTo, actorId: userId, module: 'tasks', type: 'task_assigned', title: 'assigned you a task', body: newTask[0].title, link: '/dashboard/tasks' })
     }
 
-    // Get assignee details
     let assignee = null
     if (assignedTo) {
       const assigneeData = await db.select({
@@ -438,14 +411,12 @@ router.put('/reorder', async (req, res) => {
   }
 })
 
-// Update task - matches frontend PUT /api/tasks/{taskId}
 router.put('/:taskId', async (req, res) => {
   try {
     const { taskId } = req.params
     const { title, description, priority, status, dueDate, assignedTo, teamId, teamIds } = req.body
     const userId = req.user!.userId
 
-    // Check if task exists and user has access
     const existingTask = await db.select()
       .from(tasks)
       .where(eq(tasks.id, taskId))
@@ -457,7 +428,6 @@ router.put('/:taskId', async (req, res) => {
 
     const task = existingTask[0]
 
-    // Check permissions (creator, assignee, or team member)
     let hasAccess = task.createdBy === userId || task.assignedTo === userId
 
     if (!hasAccess) {
@@ -481,7 +451,6 @@ router.put('/:taskId', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this task' })
     }
 
-    // Build update object
     const updateData: any = {}
     if (title !== undefined) updateData.title = title
     if (description !== undefined) updateData.description = description
@@ -490,9 +459,7 @@ router.put('/:taskId', async (req, res) => {
     if (dueDate !== undefined) updateData.dueDate = dueDate ? new Date(dueDate) : null
     if (assignedTo !== undefined) updateData.assignedTo = assignedTo
 
-    // Handle team associations
     if (teamIds !== undefined) {
-      // Update task-team associations
       await db.delete(taskTeams)
         .where(eq(taskTeams.taskId, taskId))
 
@@ -511,7 +478,6 @@ router.put('/:taskId', async (req, res) => {
       return res.status(400).json({ message: 'No update data provided' })
     }
 
-    // Update task
     await db.update(tasks)
       .set(updateData)
       .where(eq(tasks.id, taskId))
@@ -520,7 +486,6 @@ router.put('/:taskId', async (req, res) => {
       await notify({ userId: assignedTo, actorId: userId, module: 'tasks', type: 'task_assigned', title: 'assigned you a task', body: updateData.title ?? existingTask[0].title, link: '/dashboard/tasks' })
     }
 
-    // Get updated task with related data
     const updatedTask = await db.select({
       id: tasks.id,
       title: tasks.title,
@@ -541,7 +506,6 @@ router.put('/:taskId', async (req, res) => {
       .where(eq(tasks.id, taskId))
       .limit(1)
 
-    // Get assignee details
     let assignee = null
     if (updatedTask[0].assignedTo) {
       const assigneeData = await db.select({
@@ -567,13 +531,11 @@ router.put('/:taskId', async (req, res) => {
   }
 })
 
-// Delete task - matches frontend DELETE /api/tasks/{taskId}
 router.delete('/:taskId', async (req, res) => {
   try {
     const { taskId } = req.params
     const userId = req.user!.userId
 
-    // Check if task exists and user has access
     const existingTask = await db.select()
       .from(tasks)
       .where(eq(tasks.id, taskId))
@@ -585,7 +547,6 @@ router.delete('/:taskId', async (req, res) => {
 
     const task = existingTask[0]
 
-    // Only creator can delete task
     if (task.createdBy !== userId) {
       return res.status(403).json({ message: 'Only the task creator can delete it' })
     }

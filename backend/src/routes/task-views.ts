@@ -12,8 +12,8 @@ const MAX_VIEWS = 25
 
 interface ViewFilters {
   status: string      // 'all' or a TaskStatus number as a string
-  assignee: string    // 'all' | 'me' | 'unassigned'
-  team: string        // 'all' or a team id
+  assignee: string
+  team: string
   search: string
 }
 

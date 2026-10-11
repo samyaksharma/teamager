@@ -113,27 +113,23 @@ function EditorBody({
   const saveTimeoutRef = useRef<NodeJS.Timeout>()
   const editorRef = useRef<HTMLDivElement>(null)
 
-  // Slash menu state
   const [showSlashMenu, setShowSlashMenu] = useState(false)
   const [slashMenuPosition, setSlashMenuPosition] = useState({ x: 0, y: 0 })
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [slashQuery, setSlashQuery] = useState('')
 
-  // Connection status & awareness
   useEffect(() => {
     const handleStatus = (event: { status: string }) => {
       setIsConnected(event.status === 'connected')
     }
     provider.on('status', handleStatus)
 
-    // Set local user info for cursor display
     provider.awareness.setLocalStateField('user', {
       name: user.name || user.email || 'Anonymous',
       color: getUserColor(user.id),
       id: user.id,
     })
 
-    // Track other collaborators via awareness
     const handleAwarenessChange = () => {
       const states = Array.from(provider.awareness.getStates().entries())
       const users = states
@@ -160,7 +156,7 @@ function EditorBody({
         blockquote: false,
         codeBlock: false,
         horizontalRule: false,
-        history: false, // Y.js handles undo/redo
+        history: false,
       }),
       Collaboration.configure({
         document: ydoc,
@@ -247,7 +243,6 @@ function EditorBody({
     onUpdate: ({ editor }) => {
       if (!canEdit) return
 
-      // Auto-save with debounce
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = setTimeout(async () => {
         try {
@@ -295,12 +290,10 @@ function EditorBody({
     }
   }, [editor, provider, ydoc, initialContent])
 
-  // Update editable when canEdit changes
   useEffect(() => {
     if (editor) editor.setEditable(canEdit)
   }, [editor, canEdit])
 
-  // Handle mobile formatting events
   useEffect(() => {
     const handleMobileFormat = (event: CustomEvent) => {
       if (!editor || !canEdit) return
@@ -321,7 +314,6 @@ function EditorBody({
     return () => window.removeEventListener('editor-format', handleMobileFormat as EventListener)
   }, [editor, canEdit])
 
-  // Slash commands
   const getSlashCommands = useCallback(() => {
     const allCommands = [
       { title: 'Heading 1', description: 'Large heading', icon: 'H1', keywords: ['heading', 'h1', 'title'], command: () => editor?.chain().focus().toggleHeading({ level: 1 }).run() },
@@ -352,7 +344,6 @@ function EditorBody({
 
   const slashMenuItems = useMemo(() => getSlashCommands(), [getSlashCommands])
 
-  // Slash menu keyboard handler
   useEffect(() => {
     if (!editor || !editorRef.current) return
 
@@ -431,7 +422,6 @@ function EditorBody({
     }
   }, [editor, canEdit, showSlashMenu, slashMenuItems, selectedIndex])
 
-  // Cleanup
   useEffect(() => {
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }
   }, [])
@@ -479,10 +469,9 @@ function EditorBody({
         />
       </div>
 
-      {/* Status Bar */}
       <Card>
         <CardHeader className="pb-3">
-          {/* Mobile Layout */}
+          
           <div className="flex flex-col space-y-3 md:hidden">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -519,7 +508,6 @@ function EditorBody({
             </div>
           </div>
 
-          {/* Desktop Layout */}
           <div className="hidden md:flex items-center justify-between">
             <div className="flex items-center space-x-4 lg:space-x-6">
               <div className="flex items-center space-x-2">
@@ -553,11 +541,10 @@ function EditorBody({
         </CardHeader>
       </Card>
 
-      {/* Editor */}
       <Card>
         <CardContent className="p-0">
           <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-            {/* Toolbar Row 1 - Text Formatting */}
+            
             <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
               <div className="p-2 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center space-x-1 flex-wrap gap-y-1">
@@ -573,7 +560,6 @@ function EditorBody({
                 </div>
               </div>
 
-              {/* Toolbar Row 2 - Blocks and Lists */}
               <div className="p-2">
                 <div className="flex items-center space-x-1 flex-wrap gap-y-1">
                   <Button variant="ghost" size="sm" onClick={() => editor.chain().focus().toggleBulletList().run()} disabled={!canEdit} className={editor.isActive('bulletList') ? 'bg-gray-200 dark:bg-gray-600' : ''} title="Bullet list">{'\u2022'} List</Button>
@@ -598,11 +584,9 @@ function EditorBody({
               </div>
             </div>
 
-            {/* Editor Content */}
             <div ref={editorRef} className="bg-white dark:bg-gray-900 relative">
               <EditorContent editor={editor} />
 
-              {/* Slash Commands Menu */}
               {showSlashMenu && (
                 <div
                   className="absolute z-50 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 min-w-[200px] max-h-[300px] overflow-y-auto"
@@ -654,7 +638,6 @@ function EditorBody({
         </CardContent>
       </Card>
 
-      {/* Mobile Tip */}
       <div className="md:hidden mt-2">
         <div className="text-center text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-2">
           Tip: Type &quot;/&quot; + text to filter commands (e.g., &quot;/red&quot; for colors)

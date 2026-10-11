@@ -9,7 +9,6 @@ import { DocumentRole, TeamRole } from '../types/enums'
 
 const router = express.Router()
 
-// Apply auth middleware to all routes
 router.use(verifyToken)
 
 // Get documents - matches frontend GET /api/documents and /api/documents?teamId={teamId}
@@ -33,8 +32,6 @@ router.get('/', async (req, res) => {
     const { teamId } = req.query
     const userId = req.user!.userId
 
-
-    // Get user's teams for access control
     const userTeams = await db.select({ teamId: teamUsers.teamId })
       .from(teamUsers)
       .where(eq(teamUsers.userId, userId))
@@ -65,7 +62,6 @@ router.get('/', async (req, res) => {
       .leftJoin(teams, eq(documents.teamId, teams.id))
       .where(and(...conditions))
 
-    // Add permissions to each document
     const docsWithPermissions = await Promise.all(
       docs.map(async (doc) => {
         const permissions = await getDocumentPermissions(doc.id, userId)
@@ -83,13 +79,11 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Get document by ID - matches frontend GET /api/documents/{docId}
 router.get('/:docId', async (req, res) => {
   try {
     const { docId } = req.params
     const userId = req.user!.userId
 
-    // Get document with author info
     const doc = await db.select({
       id: documents.id,
       title: documents.title,
@@ -113,13 +107,11 @@ router.get('/:docId', async (req, res) => {
 
     const document = doc[0]
     
-    // Check if user has permission to view this document
     const hasAccess = await checkDocumentAccess(docId, userId, DocumentRole.VIEWER)
     if (!hasAccess) {
       return res.status(403).json({ message: 'Access denied to this document' })
     }
 
-    // Get user's permissions for this document
     const permissions = await getDocumentPermissions(docId, userId)
     
     res.json({
@@ -132,18 +124,15 @@ router.get('/:docId', async (req, res) => {
   }
 })
 
-// Create document - matches frontend POST /api/documents
 router.post('/', async (req, res) => {
   try {
     const { title, content = '', teamId } = req.body
     const userId = req.user!.userId
 
-
     if (!title) {
       return res.status(400).json({ message: 'Document title is required' })
     }
 
-    // If teamId provided, verify user is member
     if (teamId) {
       const teamMembership = await db.select()
         .from(teamUsers)
@@ -161,19 +150,17 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Create document
     const newDoc = await db.insert(documents)
       .values({
         title,
         content,
         teamId: teamId || null,
-        ownerId: userId, // Set owner to creator
+        ownerId: userId,
         createdBy: userId,
         updatedBy: userId
       })
       .returning()
 
-    // Get document with author info
     const docWithAuthor = await db.select({
       id: documents.id,
       title: documents.title,
@@ -198,14 +185,12 @@ router.post('/', async (req, res) => {
   }
 })
 
-// Update document - matches frontend PUT /api/documents/{docId}
 router.put('/:docId', async (req, res) => {
   try {
     const { docId } = req.params
     const { title, content, teamId } = req.body
     const userId = req.user!.userId
 
-    // Check if document exists and user has access
     const existingDoc = await db.select()
       .from(documents)
       .where(eq(documents.id, docId))
@@ -215,19 +200,16 @@ router.put('/:docId', async (req, res) => {
       return res.status(404).json({ message: 'Document not found' })
     }
 
-    // Check if user has permission to edit this document
     const hasEditAccess = await checkDocumentAccess(docId, userId, DocumentRole.EDITOR)
     if (!hasEditAccess) {
       return res.status(403).json({ message: 'Access denied to edit this document' })
     }
 
-    // Build update object
     const updateData: any = { updatedBy: userId, updatedAt: new Date() }
     if (title !== undefined) updateData.title = title
     if (content !== undefined) updateData.content = content
     if (teamId !== undefined) updateData.teamId = teamId
 
-    // Update document
     const updatedDoc = await db.update(documents)
       .set(updateData)
       .where(eq(documents.id, docId))
@@ -237,7 +219,6 @@ router.put('/:docId', async (req, res) => {
       await recordVersionOnSave(existingDoc[0], content, userId)
     }
 
-    // Get updated document with author info
     const docWithAuthor = await db.select({
       id: documents.id,
       title: documents.title,
@@ -262,13 +243,11 @@ router.put('/:docId', async (req, res) => {
   }
 })
 
-// Delete document - matches frontend DELETE /api/documents/{docId}
 router.delete('/:docId', async (req, res) => {
   try {
     const { docId } = req.params
     const userId = req.user!.userId
 
-    // Check if document exists and user has access
     const existingDoc = await db.select()
       .from(documents)
       .where(eq(documents.id, docId))
@@ -280,12 +259,10 @@ router.delete('/:docId', async (req, res) => {
 
     const document = existingDoc[0]
 
-    // Check if user is the owner (only owner can delete)
     if (document.ownerId !== userId) {
       return res.status(403).json({ message: 'Only the document owner can delete it' })
     }
 
-    // Delete document
     await db.delete(documents)
       .where(eq(documents.id, docId))
 
@@ -296,13 +273,11 @@ router.delete('/:docId', async (req, res) => {
   }
 })
 
-// WebRTC room verification - secure collaboration access
 router.post('/:docId/verify-access', async (req, res) => {
   try {
     const { docId } = req.params
     const userId = req.user!.userId
 
-    // Check if document exists and user has access
     const existingDoc = await db.select()
       .from(documents)
       .where(eq(documents.id, docId))
@@ -312,18 +287,14 @@ router.post('/:docId/verify-access', async (req, res) => {
       return res.status(404).json({ message: 'Document not found' })
     }
 
-    // Check if user has permission to access this document
     const permissions = await getDocumentPermissions(docId, userId)
-    
 
     if (!permissions.canView) {
       return res.status(403).json({ message: 'Access denied to this document' })
     }
 
-    // Generate secure room token
     const roomToken = `${docId}-${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     
-    // Return verification success with room token
     res.json({
       verified: true,
       roomToken,
@@ -338,19 +309,16 @@ router.post('/:docId/verify-access', async (req, res) => {
   }
 })
 
-// Get document permissions/roles - GET /api/documents/{docId}/permissions
 router.get('/:docId/permissions', async (req, res) => {
   try {
     const { docId } = req.params
     const userId = req.user!.userId
 
-    // Check if user has admin access to view permissions
     const permissions = await getDocumentPermissions(docId, userId)
     if (!permissions.canAdmin && permissions.effectiveRole !== 'owner') {
       return res.status(403).json({ message: 'Access denied to view document permissions' })
     }
 
-    // Get all document roles
     const roles = await db.select({
       id: documentRoles.id,
       userId: documentRoles.userId,
@@ -365,7 +333,6 @@ router.get('/:docId/permissions', async (req, res) => {
       .leftJoin(teams, eq(documentRoles.teamId, teams.id))
       .where(eq(documentRoles.documentId, docId))
 
-    // Get document owner info
     const document = await db.select({
       ownerId: documents.ownerId,
       ownerName: users.name,
@@ -386,7 +353,6 @@ router.get('/:docId/permissions', async (req, res) => {
   }
 })
 
-// Assign role to user or team - POST /api/documents/{docId}/permissions
 router.post('/:docId/permissions', async (req, res) => {
   try {
     const { docId } = req.params
@@ -419,7 +385,6 @@ router.post('/:docId/permissions', async (req, res) => {
   }
 })
 
-// Remove role from user or team - DELETE /api/documents/{docId}/permissions
 router.delete('/:docId/permissions', async (req, res) => {
   try {
     const { docId } = req.params

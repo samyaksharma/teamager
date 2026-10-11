@@ -4,10 +4,8 @@ import { logger } from '../utils/logger'
 
 const router = express.Router()
 
-// Get auth logs (protected route - only for debugging)
 router.get('/auth', verifyToken, async (req, res) => {
   try {
-    // Only allow in development or for specific users
     if (process.env.NODE_ENV === 'production') {
       return res.status(403).json({ message: 'Logs not available in production' })
     }
@@ -26,7 +24,6 @@ router.get('/auth', verifyToken, async (req, res) => {
   }
 })
 
-// Get general logs
 router.get('/general', verifyToken, async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'production') {

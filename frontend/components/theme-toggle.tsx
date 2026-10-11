@@ -20,12 +20,10 @@ export function ThemeToggle() {
     setMounted(true)
   }, [])
 
-  // Debug logging and system theme fix
   useEffect(() => {
     if (mounted) {
       console.log('Theme debug:', { theme, resolvedTheme, systemTheme })
       
-      // Check if we need to force system theme refresh
       if (theme === "system") {
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
         const systemIsDark = mediaQuery.matches
@@ -34,7 +32,6 @@ export function ThemeToggle() {
         console.log('System is dark:', systemIsDark)
         console.log('HTML has dark class:', htmlElement.classList.contains('dark'))
         
-        // Force apply the correct system theme if there's a mismatch
         if (systemIsDark && !htmlElement.classList.contains('dark')) {
           console.log('Forcing dark mode application')
           htmlElement.classList.add('dark')
@@ -50,7 +47,6 @@ export function ThemeToggle() {
     return null
   }
 
-  // Always show sun/moon icons based on resolved theme
   const getIcon = () => {
     return (
       <>
@@ -87,11 +83,9 @@ export function ThemeToggle() {
         </DropdownMenuItem>
         <DropdownMenuItem 
           onClick={() => {
-            // Clear any cached theme data and force system refresh
             localStorage.removeItem('teamager-theme')
             setTheme("system")
             setTimeout(() => {
-              // Force a page refresh to ensure clean theme state
               const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
               const htmlElement = document.documentElement
               if (mediaQuery.matches) {

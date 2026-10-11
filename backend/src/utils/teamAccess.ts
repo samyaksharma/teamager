@@ -2,7 +2,6 @@ import { and, eq } from 'drizzle-orm'
 import { db, teamUsers } from '../db'
 import { TeamRole } from '../types/enums'
 
-// The user's role in a team, or null when they are not a member
 export async function getTeamRole(userId: string, teamId: string): Promise<TeamRole | null> {
   const rows = await db.select({ role: teamUsers.role }).from(teamUsers)
     .where(and(eq(teamUsers.userId, userId), eq(teamUsers.teamId, teamId))).limit(1)
@@ -15,7 +14,6 @@ export async function canWriteInTeam(userId: string, teamId: string): Promise<bo
   return role !== null && role !== TeamRole.VIEWER
 }
 
-// Ids of the user's teams in which they may create and change content
 export async function writableTeamIds(userId: string): Promise<string[]> {
   const rows = await db.select({ teamId: teamUsers.teamId, role: teamUsers.role }).from(teamUsers)
     .where(eq(teamUsers.userId, userId))

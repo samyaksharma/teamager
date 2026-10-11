@@ -18,7 +18,6 @@ interface SessionInfo {
 export const parseUserAgent = (userAgent: string = ''): DeviceInfo => {
   const ua = userAgent.toLowerCase()
   
-  // Device type detection
   let deviceType: 'mobile' | 'desktop' | 'tablet' = 'desktop'
   if (ua.includes('mobile') && !ua.includes('tablet')) {
     deviceType = 'mobile'
@@ -26,7 +25,6 @@ export const parseUserAgent = (userAgent: string = ''): DeviceInfo => {
     deviceType = 'tablet'
   }
   
-  // Browser detection
   let browser = 'Unknown'
   if (ua.includes('chrome') && !ua.includes('edge')) {
     browser = 'Chrome'
@@ -40,7 +38,6 @@ export const parseUserAgent = (userAgent: string = ''): DeviceInfo => {
     browser = 'Opera'
   }
   
-  // OS detection
   let os = 'Unknown'
   if (ua.includes('windows')) {
     os = 'Windows'
@@ -54,7 +51,6 @@ export const parseUserAgent = (userAgent: string = ''): DeviceInfo => {
     os = 'iOS'
   }
   
-  // Generate device name
   const deviceName = `${browser} on ${os}`
   
   return {
@@ -91,7 +87,6 @@ export const cleanupExpiredTokens = async () => {
 
 export const enforceTokenLimit = async (userId: string, maxTokens: number = 5) => {
   try {
-    // Get count of active tokens for user
     const tokenCount = await db.select({ count: count() })
       .from(refreshTokens)
       .where(and(
@@ -102,7 +97,6 @@ export const enforceTokenLimit = async (userId: string, maxTokens: number = 5) =
     const currentCount = tokenCount[0]?.count || 0
     
     if (currentCount >= maxTokens) {
-      // Remove oldest tokens to make room
       const tokensToRemove = currentCount - maxTokens + 1
       
       const oldTokens = await db.select({ id: refreshTokens.id })

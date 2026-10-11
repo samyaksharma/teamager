@@ -75,7 +75,6 @@ function nextStatusInCycle(current: unknown): number {
   return STATUS_CYCLE[(index + 1) % STATUS_CYCLE.length]
 }
 
-// Edit Task Form Component
 function EditTaskForm({ task, teams, organizations, users, onSave, onCancel }: {
   task: any,
   teams: any[],
@@ -194,7 +193,6 @@ function EditTaskForm({ task, teams, organizations, users, onSave, onCancel }: {
   )
 }
 
-// Internal component that uses the tasks context
 function TasksContent() {
   const {
     tasks,
@@ -224,7 +222,6 @@ function TasksContent() {
   const [keepDialogOpen, setKeepDialogOpen] = useState(false)
   const [showSuccessMessage, setShowSuccessMessage] = useState(false)
 
-  // Fetch team members for assignment
   useEffect(() => {
     const fetchTeamMembers = async () => {
       try {
@@ -233,7 +230,6 @@ function TasksContent() {
           const members = await teamApi.getMembers(team.id)
           allMembers = [...allMembers, ...members]
         }
-        // Remove duplicates
         const uniqueMembers = allMembers.filter((member, index, self) =>
           index === self.findIndex(m => m.id === member.id)
         )
@@ -248,7 +244,6 @@ function TasksContent() {
     }
   }, [teams])
 
-  // Form state for new task
   const [newTaskForm, setNewTaskForm] = useState({
     title: '',
     description: '',
@@ -262,7 +257,7 @@ function TasksContent() {
   })
 
   const handleCreateTask = async () => {
-    if (isCreatingTask) return // Prevent double submission
+    if (isCreatingTask) return
 
     try {
       if (!newTaskForm.title.trim()) {
@@ -286,7 +281,6 @@ function TasksContent() {
 
       await createTask(taskData)
 
-      // Reset form only on successful creation
       setNewTaskForm({
         title: '',
         description: '',
@@ -299,11 +293,9 @@ function TasksContent() {
         dueDate: ''
       })
 
-      // Close dialog only if keepDialogOpen is false
       if (!keepDialogOpen) {
         setIsNewIssueDialogOpen(false)
       } else {
-        // Show success message briefly if dialog stays open
         setShowSuccessMessage(true)
         setTimeout(() => setShowSuccessMessage(false), 3000)
       }
@@ -337,7 +329,6 @@ function TasksContent() {
     }))
   }
 
-  // Quick action functions
   const handleQuickStatusChange = async (taskId: string, newStatus: number) => {
     try {
       await updateTask(taskId, { status: newStatus })
@@ -413,7 +404,6 @@ function TasksContent() {
     setSearchTerm(filters.search)
   }
 
-  // Get filtered tasks based on current filters
   const getFilteredTasks = () => {
     const query = searchTerm.trim().toLowerCase()
     return tasks.filter((task: any) => {
@@ -431,7 +421,7 @@ function TasksContent() {
 
   return (
     <div className="flex h-[calc(100vh-112px)] md:h-[calc(100vh-56px)] overflow-hidden">
-      {/* Tasks Sidebar */}
+      
       <div className="w-64 flex-col bg-gray-50 border-r dark:bg-gray-900 md:flex hidden">
         <div className="flex h-12 items-center border-b px-4">
           <div className="flex items-center justify-between w-full">
@@ -485,16 +475,14 @@ function TasksContent() {
         </div>
       </div>
 
-      {/* Main Tasks Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Mobile Sidebar Toggle */}
+        
         <div className="md:hidden p-2 border-b bg-background">
           <Button
             variant="outline"
             size="sm"
             className="w-full justify-start"
             onClick={() => {
-              // Toggle mobile sidebar
             }}
           >
             <Menu className="h-4 w-4 mr-2" />
@@ -502,7 +490,6 @@ function TasksContent() {
           </Button>
         </div>
 
-        {/* Header */}
         <header className="flex h-12 items-center justify-between border-b bg-white px-4 dark:bg-gray-950">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">Tasks</h1>
@@ -535,7 +522,6 @@ function TasksContent() {
             <Dialog open={isNewIssueDialogOpen} onOpenChange={(open) => {
               setIsNewIssueDialogOpen(open)
               if (!open) {
-                // Reset states when dialog is closed
                 setIsCreatingTask(false)
                 setKeepDialogOpen(false)
                 setShowSuccessMessage(false)
@@ -553,7 +539,6 @@ function TasksContent() {
                   <DialogDescription>Fill in the details to create a new task.</DialogDescription>
                 </DialogHeader>
 
-                {/* Success message */}
                 {showSuccessMessage && (
                   <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4">
                     <div className="flex items-center">
@@ -586,7 +571,6 @@ function TasksContent() {
                     />
                   </div>
 
-                  {/* Organization selector */}
                   <div className="grid gap-2">
                     <Label htmlFor="issue-organization">Organization</Label>
                     <Select
@@ -604,7 +588,6 @@ function TasksContent() {
                     </Select>
                   </div>
 
-                  {/* Multiple teams selector */}
                   <div className="grid gap-2">
                     <Label htmlFor="issue-teams">Teams (can select multiple)</Label>
                     <Select onValueChange={addTeamToTask}>
@@ -714,7 +697,6 @@ function TasksContent() {
                     </div>
                   </div>
 
-                  {/* Due Date */}
                   <div className="grid gap-2">
                     <Label htmlFor="issue-due-date">Due Date</Label>
                     <Input
@@ -726,7 +708,6 @@ function TasksContent() {
                   </div>
                 </div>
 
-                {/* Keep dialog open checkbox */}
                 <div className="flex items-center space-x-2 pt-4 border-t">
                   <Checkbox
                     id="keep-dialog-open"
@@ -771,7 +752,6 @@ function TasksContent() {
               </DialogContent>
             </Dialog>
 
-            {/* Edit Task Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
               <DialogContent className="max-w-[95vw] sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
@@ -800,7 +780,6 @@ function TasksContent() {
           </div>
         </header>
 
-        {/* Main Content Area */}
         <div className="flex-1 overflow-auto p-4">
           {isLoading ? (
             <div className="flex justify-center items-center h-full">
@@ -812,7 +791,7 @@ function TasksContent() {
             </div>
           ) : (
             <Tabs defaultValue="board">
-              {/* Make the tablist in tasks more mobile-friendly */}
+              
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <TabsList className="h-auto p-1">
                   <TabsTrigger
@@ -869,9 +848,8 @@ function TasksContent() {
                 </div>
               </div>
 
-              {/* Board View */}
               <TabsContent value="board" className="mt-0">
-                {/* Mobile View - Single column with sections */}
+                
                 <div className="md:hidden space-y-6">
                   {[
                     { status: [TaskStatus.BACKLOG], title: 'Backlog', color: 'bg-gray-400', bgColor: 'bg-gray-100', textColor: 'text-gray-800', borderColor: 'border-gray-200' },
@@ -976,7 +954,6 @@ function TasksContent() {
                                     </Button>
                                   </div>
 
-                                  {/* Quick Action Buttons */}
                                   <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
                                     <div className="flex items-center gap-1">
                                       <Button
@@ -1013,7 +990,7 @@ function TasksContent() {
                                     </div>
                                   </div>
                                   <p className="text-sm text-gray-500">{task.description}</p>
-                                  {/* Organization badge */}
+                                  
                                   {task.organization && (
                                     <div className="flex items-center gap-1 mb-1">
                                       <div className="flex items-center gap-1">
@@ -1023,7 +1000,6 @@ function TasksContent() {
                                     </div>
                                   )}
 
-                                  {/* Teams */}
                                   {task.teams && task.teams.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mb-1">
                                       {task.teams.map(team => (
@@ -1098,7 +1074,6 @@ function TasksContent() {
                   })}
                 </div>
 
-                {/* Desktop View - Column layout */}
                 <div className="hidden md:block">
                   <TaskBoard
                     tasks={filteredTasks as any}
@@ -1114,12 +1089,10 @@ function TasksContent() {
                 </div>
               </TabsContent>
 
-              {/* List View */}
               <TabsContent value="list" className="mt-0">
                 <TaskListView tasks={filteredTasks as any} onEdit={handleEditTask} />
               </TabsContent>
 
-              {/* Timeline View */}
               <TabsContent value="timeline" className="mt-0">
                 <TaskTimeline tasks={filteredTasks as any} onEdit={handleEditTask} />
               </TabsContent>

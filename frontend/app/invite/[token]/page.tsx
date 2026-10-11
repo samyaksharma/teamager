@@ -38,7 +38,6 @@ export default function InvitePage({ params }: { params: { token: string } }) {
   const [accepted, setAccepted] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
-  // Check if user is logged in using HTTP-only cookies
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -48,7 +47,6 @@ export default function InvitePage({ params }: { params: { token: string } }) {
           setIsAuthenticated(true)
         }
       } catch (error) {
-        // User is not authenticated
         setIsAuthenticated(false)
       }
     }
@@ -56,7 +54,6 @@ export default function InvitePage({ params }: { params: { token: string } }) {
     checkAuth()
   }, [])
 
-  // Fetch invitation details
   useEffect(() => {
     const fetchInvitation = async () => {
       try {
@@ -78,7 +75,6 @@ export default function InvitePage({ params }: { params: { token: string } }) {
 
   const handleAccept = async () => {
     if (!isAuthenticated) {
-      // If not logged in, redirect to login with invitation token as query param
       router.push(`/login?invitation=${params.token}`)
       return
     }
@@ -90,7 +86,6 @@ export default function InvitePage({ params }: { params: { token: string } }) {
       })
       setAccepted(true)
 
-      // Redirect to dashboard after a short delay
       setTimeout(() => {
         router.push('/dashboard')
       }, 2000)
@@ -105,18 +100,16 @@ export default function InvitePage({ params }: { params: { token: string } }) {
     router.push('/')
   }
 
-  // Format date to be more readable
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
   }
 
-  // Check if invitation is expired
   const isExpired = invitation && new Date(invitation.invitation.expiresAt) < new Date()
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header with theme toggle */}
+      
       <header className="flex items-center justify-between px-6 py-4 md:p-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-xl">
           <TeamagerLogo className="h-6 w-6" />

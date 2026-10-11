@@ -14,10 +14,8 @@ import { PreferencesForm } from "@/components/signup/preferences-form"
 import { SuccessStep } from "@/components/signup/success-step"
 import { useAuth } from "@/lib/authContext"
 
-// Define the stages of the signup process
 type SignupStage = "organization" | "user" | "preferences" | "success"
 
-// Define the data structure for the signup process
 interface SignupData {
   organization: {
     name: string
@@ -43,7 +41,6 @@ export default function SignupPage() {
   const router = useRouter()
   const { user, isLoading: authLoading } = useAuth()
 
-  // Track the current stage of the signup process
   const [currentStage, setCurrentStage] = useState<SignupStage>("organization")
 
   // Redirect already-signed-in visitors to the dashboard. Not during the final step: it signs the new
@@ -54,7 +51,6 @@ export default function SignupPage() {
     }
   }, [user, authLoading, router, currentStage])
 
-  // Initialize the signup data
   const [signupData, setSignupData] = useState<SignupData>({
     organization: {
       name: "",
@@ -76,7 +72,6 @@ export default function SignupPage() {
     },
   })
 
-  // Calculate progress percentage based on current stage
   const getProgressPercentage = () => {
     switch (currentStage) {
       case "organization":
@@ -92,25 +87,21 @@ export default function SignupPage() {
     }
   }
 
-  // Handle organization form submission
   const handleOrganizationSubmit = (orgData: SignupData["organization"]) => {
     setSignupData({ ...signupData, organization: orgData })
     setCurrentStage("user")
   }
 
-  // Handle user form submission
   const handleUserSubmit = (userData: SignupData["user"]) => {
     setSignupData({ ...signupData, user: userData })
     setCurrentStage("preferences")
   }
 
-  // Handle preferences form submission
   const handlePreferencesSubmit = (preferencesData: SignupData["preferences"]) => {
     setSignupData({ ...signupData, preferences: preferencesData })
     setCurrentStage("success")
   }
 
-  // Handle going back to the previous stage
   const handleBack = () => {
     if (currentStage === "preferences") {
       setCurrentStage("user")
@@ -119,13 +110,10 @@ export default function SignupPage() {
     }
   }
 
-  // Handle restarting from error (keeps user data)
   const handleRestart = () => {
     setCurrentStage("organization")
-    // Keep the existing signup data instead of clearing it
   }
 
-  // Render the current stage of the signup process
   const renderCurrentStage = () => {
     switch (currentStage) {
       case "organization":
@@ -147,7 +135,6 @@ export default function SignupPage() {
     }
   }
 
-  // Show loading while checking authentication
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -159,12 +146,12 @@ export default function SignupPage() {
   // Don't render the form for visitors who are already signed in (they're redirected), except on the final
   // step, which signs the new account in itself and keeps showing progress
   if (user && currentStage !== "success") {
-    return null // Will redirect via useEffect
+    return null
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header with theme toggle */}
+      
       <header className="flex items-center justify-between px-6 py-4 md:p-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-xl">
           <TeamagerLogo className="h-6 w-6" />

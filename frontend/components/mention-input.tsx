@@ -19,7 +19,6 @@ interface MentionInputProps extends Omit<React.ComponentProps<typeof Input>, "on
 // The "@word" being typed right before the caret, if any
 const ACTIVE_MENTION = /(?:^|\s)@([A-Za-z0-9_.-]*)$/
 
-// A text input that suggests teammates when you type "@" and inserts their @username
 export function MentionInput({ value, onChange, people, className, ...props }: MentionInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [caret, setCaret] = useState(0)

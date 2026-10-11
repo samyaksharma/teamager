@@ -30,7 +30,6 @@ export function PreferencesForm({ initialData, onSubmit, onBack }: PreferencesFo
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validate form
     const newErrors: Partial<Record<keyof PreferencesData, string>> = {}
 
     if (!formData.organizationRole.trim()) {
@@ -50,7 +49,6 @@ export function PreferencesForm({ initialData, onSubmit, onBack }: PreferencesFo
       return
     }
 
-    // Submit form if validation passes
     onSubmit(formData)
   }
 

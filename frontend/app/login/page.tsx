@@ -38,45 +38,36 @@ function LoginPageInner() {
   const searchParams = useSearchParams()
   const { user, isLoading: authLoading, setUser, refreshOrganizations, refreshTeams } = useAuth()
 
-  // Redirect authenticated users to dashboard
   useEffect(() => {
     if (!authLoading && user) {
       router.push('/dashboard')
     }
   }, [user, authLoading, router])
 
-  // Use a persistent error system that doesn't clear automatically
   useEffect(() => {
-    // Check if we have an error stored in localStorage
     const storedError = localStorage.getItem('loginError')
     if (storedError) {
       setError(storedError)
       setShowError(true)
-      // Clear the stored error after retrieving it
       localStorage.removeItem('loginError')
     }
   }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
-    // Prevent default form submission behavior
     e.preventDefault()
 
-    // Reset error state and set loading
     setError(null)
     setShowError(false)
     setIsLoading(true)
 
-    // Use a standard promise pattern instead of async/await
     authApi.login(email, password)
       .then(async response => {
 
-        // Update auth context with user data (access token now in HTTP-only cookie)
         if (response.user) {
           setUser(response.user)
           localStorage.setItem('user', JSON.stringify(response.user))
         }
 
-        // Check for pending organization setup from signup
         const pendingOrgSetup = localStorage.getItem('pendingOrgSetup')
         let orgCreated = false
 
@@ -98,7 +89,6 @@ function LoginPageInner() {
           }
         }
 
-        // Load organization and team data (especially important if org was just created)
         try {
           // Add a small delay if organization was just created to ensure DB consistency
           if (orgCreated) {
@@ -113,44 +103,34 @@ function LoginPageInner() {
           // Continue anyway - context will handle missing data
         }
 
-        // Use router.push for better state management
         const redirectUrl = searchParams?.get('redirect') || '/dashboard'
         router.push(redirectUrl)
       })
       .catch(err => {
 
-        // Handle different types of errors
         let errorMessage = "";
 
         if (err.response) {
-          // Server returned an error response (4xx, 5xx)
           const responseData = err.response.data
           errorMessage = responseData.message || "Login failed. Please check your credentials.";
         } else if (err.request) {
-          // Request was made but no response received
           errorMessage = "No response from server. Please check your connection.";
         } else {
-          // Something else went wrong
           errorMessage = "An unexpected error occurred. Please try again.";
         }
 
-        // Set error in state
         setError(errorMessage)
         setShowError(true)
 
-        // Also store in localStorage for persistence
         localStorage.setItem('loginError', errorMessage)
       })
       .finally(() => {
-        // Always ensure loading state is reset on completion
         setIsLoading(false)
       })
 
-    // Explicitly return false to prevent form submission
     return false
   }
 
-  // Show loading while checking authentication
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -159,14 +139,13 @@ function LoginPageInner() {
     )
   }
 
-  // Don't render login form if user is already authenticated
   if (user) {
-    return null // Will redirect via useEffect
+    return null
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header with theme toggle */}
+      
       <header className="flex items-center justify-between px-6 py-4 md:p-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-xl">
           <TeamagerLogo className="h-6 w-6" />
@@ -193,7 +172,6 @@ function LoginPageInner() {
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value)
-                    // Only clear error when user starts typing again
                     if (showError) {
                       setShowError(false)
                     }
@@ -216,7 +194,6 @@ function LoginPageInner() {
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value)
-                    // Only clear error when user starts typing again
                     if (showError) {
                       setShowError(false)
                     }
@@ -224,7 +201,6 @@ function LoginPageInner() {
                   required
                 />
               </div>
-
 
               {showError && error && (
                 <div className="p-4 mt-2 rounded-md bg-destructive/15 border border-destructive text-destructive text-sm font-medium">

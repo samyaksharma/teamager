@@ -5,19 +5,16 @@ import { verifyToken } from '../middleware/auth'
 
 const router = express.Router()
 
-// Combined dashboard data endpoint
 router.get('/', verifyToken, async (req, res) => {
   try {
     const userId = req.user!.userId
     
-    // Fetch all dashboard data in parallel for better performance
     const [
       userOrganizations,
       userTeams,
       userTasks,
       userDocuments
     ] = await Promise.all([
-      // Get organizations
       db.select({
         id: organizations.id,
         name: organizations.name,
@@ -35,7 +32,6 @@ router.get('/', verifyToken, async (req, res) => {
         eq(organizationUsers.isActive, true)
       )),
 
-      // Get teams
       db.select({
         id: teams.id,
         name: teams.name,
@@ -49,7 +45,6 @@ router.get('/', verifyToken, async (req, res) => {
       .innerJoin(organizations, eq(teams.organizationId, organizations.id))
       .where(eq(teamUsers.userId, userId)),
 
-      // Get tasks
       db.select({
         id: tasks.id,
         title: tasks.title,
@@ -66,7 +61,6 @@ router.get('/', verifyToken, async (req, res) => {
       .leftJoin(organizations, eq(tasks.organizationId, organizations.id))
       .where(eq(tasks.assignedTo, userId)),
 
-      // Get documents
       db.select({
         id: documents.id,
         title: documents.title,
@@ -86,7 +80,6 @@ router.get('/', verifyToken, async (req, res) => {
       .where(eq(teamUsers.userId, userId))
     ])
 
-    // Get channels for all user teams
     const teamIds = userTeams.map(team => team.id)
     const teamChannels = teamIds.length > 0 ? await db.select({
       id: channels.id,
@@ -101,7 +94,6 @@ router.get('/', verifyToken, async (req, res) => {
     .from(channels)
     .where(inArray(channels.teamId, teamIds)) : []
 
-    // Group channels by team for easier frontend consumption
     const channelsByTeam = teamChannels.reduce((acc, channel) => {
       if (!acc[channel.teamId]) {
         acc[channel.teamId] = []

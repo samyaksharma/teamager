@@ -20,7 +20,6 @@ export default function ForgotPasswordPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Basic validation
     if (!email.trim()) {
       setError("Please enter your email address")
       return
@@ -33,14 +32,13 @@ export default function ForgotPasswordPage() {
 
     // In a real app, you would send a password reset request to your API
 
-    // Clear any errors and show success message
     setError(null)
     setIsSubmitted(true)
   }
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header with theme toggle */}
+      
       <header className="flex items-center justify-between px-6 py-4 md:p-6">
         <Link href="/" className="flex items-center gap-2 font-bold text-xl">
           <TeamagerLogo className="h-6 w-6" />

@@ -6,16 +6,13 @@ import { verifyToken } from '../middleware/auth'
 
 const router = express.Router()
 
-// Apply auth middleware to all routes
 router.use(verifyToken)
 
-// Get direct messages - matches frontend GET /api/direct-messages
 router.get('/', async (req, res) => {
   try {
     const { limit } = req.query
     const userId = req.user!.userId
 
-    // Get all direct messages for the user
     const limitNum = limit ? parseInt(limit as string) : undefined
     
     let messagesQuery = db.select({
@@ -55,7 +52,6 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Get unread direct messages - matches frontend GET /api/direct-messages/unread
 router.get('/unread', async (req, res) => {
   try {
     const userId = req.user!.userId
@@ -89,14 +85,12 @@ router.get('/unread', async (req, res) => {
   }
 })
 
-// Get messages with specific user - matches frontend GET /api/direct-messages/user/{userId}
 router.get('/user/:otherUserId', async (req, res) => {
   try {
     const { otherUserId } = req.params
     const { limit } = req.query
     const userId = req.user!.userId
 
-    // Verify the other user exists
     const otherUser = await db.select()
       .from(users)
       .where(eq(users.id, otherUserId))
@@ -106,7 +100,6 @@ router.get('/user/:otherUserId', async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
-    // Get conversation between the two users
     const limitNum = limit ? parseInt(limit as string) : undefined
     
     let messagesQuery = db.select({
@@ -153,7 +146,6 @@ router.get('/user/:otherUserId', async (req, res) => {
   }
 })
 
-// Send message to user - matches frontend POST /api/direct-messages/user/{userId}
 router.post('/user/:receiverId', async (req, res) => {
   try {
     const { receiverId } = req.params
@@ -168,7 +160,6 @@ router.post('/user/:receiverId', async (req, res) => {
       return res.status(400).json({ message: 'Cannot send message to yourself' })
     }
 
-    // Verify receiver exists
     const receiver = await db.select()
       .from(users)
       .where(eq(users.id, receiverId))
@@ -178,7 +169,6 @@ router.post('/user/:receiverId', async (req, res) => {
       return res.status(404).json({ message: 'Receiver not found' })
     }
 
-    // Create message
     const newMessage = await db.insert(directMessages)
       .values({
         content: content.trim(),
@@ -189,7 +179,6 @@ router.post('/user/:receiverId', async (req, res) => {
 
     await notify({ userId: receiverId, actorId: userId, module: 'messages', type: 'direct_message', title: 'sent you a direct message', body: content.trim(), link: '/dashboard/messages' })
 
-    // Get message with sender info
     const messageWithSender = await db.select({
       id: directMessages.id,
       content: directMessages.content,
@@ -213,13 +202,11 @@ router.post('/user/:receiverId', async (req, res) => {
   }
 })
 
-// Mark message as read - matches frontend PUT /api/direct-messages/{messageId}/read
 router.put('/:messageId/read', async (req, res) => {
   try {
     const { messageId } = req.params
     const userId = req.user!.userId
 
-    // Get message and verify user is the receiver
     const message = await db.select()
       .from(directMessages)
       .where(eq(directMessages.id, messageId))
@@ -233,7 +220,6 @@ router.put('/:messageId/read', async (req, res) => {
       return res.status(403).json({ message: 'You can only mark messages addressed to you as read' })
     }
 
-    // Mark as read
     const updatedMessage = await db.update(directMessages)
       .set({ readAt: new Date() })
       .where(eq(directMessages.id, messageId))
@@ -246,13 +232,11 @@ router.put('/:messageId/read', async (req, res) => {
   }
 })
 
-// Mark all messages from user as read - matches frontend PUT /api/direct-messages/user/{userId}/read-all
 router.put('/user/:senderId/read-all', async (req, res) => {
   try {
     const { senderId } = req.params
     const userId = req.user!.userId
 
-    // Verify sender exists
     const sender = await db.select()
       .from(users)
       .where(eq(users.id, senderId))
@@ -262,7 +246,6 @@ router.put('/user/:senderId/read-all', async (req, res) => {
       return res.status(404).json({ message: 'User not found' })
     }
 
-    // Mark all unread messages from this sender as read
     await db.update(directMessages)
       .set({ readAt: new Date() })
       .where(
@@ -280,13 +263,11 @@ router.put('/user/:senderId/read-all', async (req, res) => {
   }
 })
 
-// Delete message - matches frontend DELETE /api/direct-messages/{messageId}
 router.delete('/:messageId', async (req, res) => {
   try {
     const { messageId } = req.params
     const userId = req.user!.userId
 
-    // Get message and verify user is the sender
     const message = await db.select()
       .from(directMessages)
       .where(eq(directMessages.id, messageId))
@@ -300,7 +281,6 @@ router.delete('/:messageId', async (req, res) => {
       return res.status(403).json({ message: 'You can only delete messages you sent' })
     }
 
-    // Soft delete the message
     const deletedMessage = await db.update(directMessages)
       .set({ deletedAt: new Date(), deletedBy: userId })
       .where(eq(directMessages.id, messageId))

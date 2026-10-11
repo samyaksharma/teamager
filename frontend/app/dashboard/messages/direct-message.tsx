@@ -24,14 +24,12 @@ export default function DirectMessageView() {
   const [messageInput, setMessageInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  // Scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
   }, [directMessages])
   
-  // Handle sending a message
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
     if (messageInput.trim()) {
@@ -53,7 +51,7 @@ export default function DirectMessageView() {
   
   return (
     <div className="flex flex-col h-full">
-      {/* Contact Header */}
+      
       <header className="flex h-14 items-center justify-between border-b bg-white px-4 dark:bg-gray-950">
         <div className="flex items-center gap-2">
           <Avatar>
@@ -74,7 +72,6 @@ export default function DirectMessageView() {
         </div>
       </header>
 
-      {/* Messages Area */}
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-6">
           {directMessages.length > 0 ? (
@@ -115,7 +112,6 @@ export default function DirectMessageView() {
         </div>
       </ScrollArea>
 
-      {/* Message Input */}
       <div className="border-t p-4">
         <form onSubmit={handleSendMessage} className="rounded-lg border bg-white dark:bg-gray-950">
           <div className="px-3 py-2">

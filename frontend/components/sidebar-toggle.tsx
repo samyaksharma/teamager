@@ -26,7 +26,6 @@ export function SidebarToggle({ onToggle, isOpen }: SidebarToggleProps) {
 export function useSidebar() {
   const [isOpen, setIsOpen] = useState(false)
 
-  // Close sidebar when window is resized to desktop size
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) {
@@ -38,7 +37,6 @@ export function useSidebar() {
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
-  // Listen for custom events
   useEffect(() => {
     const handleToggleSidebar = () => {
       setIsOpen((prev) => !prev)
@@ -63,7 +61,6 @@ export function useSidebar() {
     }
   }, [])
 
-  // Prevent body scroll when sidebar is open on mobile
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden"

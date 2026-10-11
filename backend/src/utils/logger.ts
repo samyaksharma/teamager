@@ -12,7 +12,7 @@ class Logger {
   private logDir: string
   private authLogFile: string
   private generalLogFile: string
-  private maxFileSize: number = 10 * 1024 * 1024 // 10MB
+  private maxFileSize: number = 10 * 1024 * 1024
   private maxFiles: number = 5
 
   constructor() {
@@ -20,7 +20,6 @@ class Logger {
     this.authLogFile = path.join(this.logDir, 'auth.log')
     this.generalLogFile = path.join(this.logDir, 'general.log')
     
-    // Create logs directory if it doesn't exist
     if (!fs.existsSync(this.logDir)) {
       fs.mkdirSync(this.logDir, { recursive: true })
     }
@@ -33,7 +32,6 @@ class Logger {
 
   private writeToFile(filePath: string, entry: LogEntry) {
     try {
-      // Check file size and rotate if needed
       if (fs.existsSync(filePath)) {
         const stats = fs.statSync(filePath)
         if (stats.size > this.maxFileSize) {
@@ -54,21 +52,19 @@ class Logger {
       const baseName = path.basename(filePath, fileExtension)
       const dirName = path.dirname(filePath)
 
-      // Rotate existing files
       for (let i = this.maxFiles - 1; i > 0; i--) {
         const oldFile = path.join(dirName, `${baseName}.${i}${fileExtension}`)
         const newFile = path.join(dirName, `${baseName}.${i + 1}${fileExtension}`)
         
         if (fs.existsSync(oldFile)) {
           if (i === this.maxFiles - 1) {
-            fs.unlinkSync(oldFile) // Delete oldest file
+            fs.unlinkSync(oldFile)
           } else {
             fs.renameSync(oldFile, newFile)
           }
         }
       }
 
-      // Move current file to .1
       const rotatedFile = path.join(dirName, `${baseName}.1${fileExtension}`)
       fs.renameSync(filePath, rotatedFile)
     } catch (error) {
@@ -84,7 +80,6 @@ class Logger {
       data
     }
 
-    // Always log to console
     const consoleMessage = `[${entry.timestamp}] ${level}: ${message}`
     switch (level) {
       case 'ERROR':
@@ -100,12 +95,10 @@ class Logger {
         console.log(consoleMessage, data || '')
     }
 
-    // Write to file
     const targetFile = logFile || this.generalLogFile
     this.writeToFile(targetFile, entry)
   }
 
-  // General logging methods
   info(message: string, data?: any) {
     this.log('INFO', message, data)
   }
@@ -122,7 +115,6 @@ class Logger {
     this.log('DEBUG', message, data)
   }
 
-  // Auth-specific logging methods
   authInfo(message: string, data?: any) {
     this.log('INFO', message, data, this.authLogFile)
   }
@@ -139,7 +131,6 @@ class Logger {
     this.log('DEBUG', message, data, this.authLogFile)
   }
 
-  // Get log files for reading
   getAuthLogs(lines: number = 100): string[] {
     try {
       if (!fs.existsSync(this.authLogFile)) {
@@ -148,14 +139,13 @@ class Logger {
       
       const content = fs.readFileSync(this.authLogFile, 'utf-8')
       const allLines = content.trim().split('\n')
-      return allLines.slice(-lines) // Return last N lines
+      return allLines.slice(-lines)
     } catch (error) {
       console.error('Failed to read auth logs:', error)
       return []
     }
   }
 
-  // Clean old log files
   cleanup(daysToKeep: number = 7) {
     try {
       const cutoffTime = Date.now() - (daysToKeep * 24 * 60 * 60 * 1000)
@@ -176,5 +166,4 @@ class Logger {
   }
 }
 
-// Export singleton instance
 export const logger = new Logger()

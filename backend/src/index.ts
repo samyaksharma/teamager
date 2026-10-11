@@ -7,7 +7,6 @@ import { cleanupService } from './services/cleanup'
 import { setupYjsServer } from './services/yjs-server'
 import { allowedOrigins, isAllowedOrigin } from './utils/origins'
 
-// Load environment variables
 config()
 
 const app = express()
@@ -47,20 +46,16 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 
-// Y.js WebSocket server for collaborative editing
 setupYjsServer(server)
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// Basic route
 app.get('/', (req, res) => {
   res.json({ message: 'Teamager API Server', version: '1.0.0' })
 })
 
-// Import routes
 import authRoutes from './routes/auth'
 import userRoutes from './routes/user'
 import verificationRoutes from './routes/verification'
@@ -82,7 +77,6 @@ import calendarRoutes from './routes/calendar'
 import taskViewRoutes from './routes/task-views'
 import taskReferenceRoutes from './routes/task-references'
 
-// API Routes - matching frontend expectations
 app.use('/api/auth', authRoutes)
 app.use('/api/user', userRoutes)
 app.use('/api/verification', verificationRoutes)
@@ -104,7 +98,6 @@ app.use('/api/logs', logRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/search', searchRoutes)
 
-// Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err)
   res.status(err.status || 500).json({
@@ -113,7 +106,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   })
 })
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({ message: 'Route not found' })
 })
@@ -121,11 +113,9 @@ app.use((req, res) => {
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
   
-  // Start cleanup service
   cleanupService.start()
 })
 
-// Graceful shutdown
 process.on('SIGINT', () => {
   console.log('Shutting down server...')
   cleanupService.stop()

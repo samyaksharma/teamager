@@ -60,10 +60,7 @@ function DashboardSkeleton() {
             Documents
           </TabsTrigger>
         </TabsList>
-        {/* <Button size="sm" className="gap-1">
-          <Plus className="h-4 w-4" />
-          New
-        </Button> */}
+        
       </div>
 
       <TabsContent value="tasks" className="space-y-4">
@@ -122,8 +119,6 @@ export default function DashboardPage() {
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false)
   const [selectedTeamForMember, setSelectedTeamForMember] = useState("")
 
-
-  // Set hasTeam based on organizations and teams
   useEffect(() => {
     setHasTeam(organizations.length > 0 || teams.length > 0)
     if (organizations.length > 0 || teams.length > 0) {
@@ -131,7 +126,6 @@ export default function DashboardPage() {
     }
   }, [organizations, teams])
 
-  // Fetch additional dashboard data (tasks, documents, channels)
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!teams.length) return
@@ -145,7 +139,6 @@ export default function DashboardPage() {
         setTasks(Array.isArray(tasksResponse) ? tasksResponse : [])
         setDocuments(Array.isArray(documentsResponse) ? documentsResponse : [])
 
-        // Fetch channels for all teams
         const allChannels = []
         for (const team of teams) {
           try {
@@ -163,9 +156,7 @@ export default function DashboardPage() {
   }, [teams])
 
   const handleMemberAdded = () => {
-    // Refresh teams data if needed
   }
-
 
   return (
     <div className="flex-1 py-6 px-1 sm:px-6">
@@ -184,7 +175,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Header */}
+          
           <div className="flex items-center justify-between">
             <div className="px-6 md:py-2">
               <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
@@ -194,7 +185,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Stats Overview */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardContent className="p-6">
@@ -247,7 +237,6 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* Main Content Tabs */}
           <Tabs defaultValue="overview" className="space-y-4">
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -255,10 +244,9 @@ export default function DashboardPage() {
               <TabsTrigger value="activity">Recent Activity</TabsTrigger>
             </TabsList>
 
-            {/* Overview Tab */}
             <TabsContent value="overview" className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
-                {/* Recent Tasks */}
+                
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
@@ -304,7 +292,6 @@ export default function DashboardPage() {
                   </CardContent>
                 </Card>
 
-                {/* Team Overview */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -340,7 +327,6 @@ export default function DashboardPage() {
                 </Card>
               </div>
 
-              {/* Recent Documents */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
@@ -382,7 +368,6 @@ export default function DashboardPage() {
               </Card>
             </TabsContent>
 
-            {/* Tasks Tab */}
             <TabsContent value="tasks" className="space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
                 <Card>
@@ -569,7 +554,6 @@ export default function DashboardPage() {
               </div>
             </TabsContent>
 
-            {/* Activity Tab */}
             <TabsContent value="activity">
               <Card>
                 <CardHeader>
@@ -627,7 +611,6 @@ export default function DashboardPage() {
             </TabsContent>
           </Tabs>
 
-          {/* Add Team Member Dialog */}
           <AddTeamMemberDialog
             open={addMemberDialogOpen}
             onOpenChange={setAddMemberDialogOpen}

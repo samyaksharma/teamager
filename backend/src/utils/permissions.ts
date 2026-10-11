@@ -21,21 +21,14 @@ export interface DocumentPermission {
   effectiveRole: DocumentRole | 'owner' | null
 }
 
-/**
- * Check if role1 has equal or higher permissions than role2
- */
 export function hasRolePermission(userRole: DocumentRole, requiredRole: DocumentRole): boolean {
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole]
 }
 
-/**
- * Get effective permissions for a user on a document
- */
 export async function getDocumentPermissions(
   documentId: string, 
   userId: string
 ): Promise<DocumentPermission> {
-  // First, get the document and check ownership
   const document = await db.select({
     ownerId: documents.ownerId,
     teamId: documents.teamId
@@ -59,7 +52,6 @@ export async function getDocumentPermissions(
 
   const doc = document[0]
 
-  // Check if user is the owner
   if (doc.ownerId === userId) {
     return {
       canView: true,
@@ -73,7 +65,6 @@ export async function getDocumentPermissions(
     }
   }
 
-  // Check direct user permissions in documentRoles
   const userRole = await db.select({
     role: documentRoles.role
   })
@@ -90,9 +81,7 @@ export async function getDocumentPermissions(
     effectiveRole = userRole[0].role as DocumentRole
   }
 
-  // If no direct permission, check team-based permissions
   if (effectiveRole === null) {
-    // Get user's teams
     const userTeams = await db.select({ teamId: teamUsers.teamId })
       .from(teamUsers)
       .where(eq(teamUsers.userId, userId))
@@ -100,7 +89,6 @@ export async function getDocumentPermissions(
     const teamIds = userTeams.map(ut => ut.teamId)
 
     if (teamIds.length > 0) {
-      // Check for team permissions
       const teamRoles = await db.select({
         role: documentRoles.role
       })
@@ -111,7 +99,6 @@ export async function getDocumentPermissions(
         ))
         .orderBy(documentRoles.role) // This will get the first role alphabetically, but we'll process for highest
 
-      // Get the highest team role
       let highestTeamRole: DocumentRole | null = null
       for (const teamRole of teamRoles) {
         const role = teamRole.role as DocumentRole
@@ -135,7 +122,7 @@ export async function getDocumentPermissions(
       .limit(1)
 
     if (isTeamMember.length > 0) {
-      effectiveRole = DocumentRole.VIEWER // Default team member access
+      effectiveRole = DocumentRole.VIEWER
     }
   }
 
@@ -153,7 +140,6 @@ export async function getDocumentPermissions(
     }
   }
 
-  // Calculate permissions based on role
   const isAdmin = hasRolePermission(effectiveRole, DocumentRole.ADMIN)
   const canEdit = hasRolePermission(effectiveRole, DocumentRole.EDITOR)
   const canComment = hasRolePermission(effectiveRole, DocumentRole.COMMENTER)
@@ -171,9 +157,6 @@ export async function getDocumentPermissions(
   }
 }
 
-/**
- * Check if user has at least the required role for a document
- */
 export async function checkDocumentAccess(
   documentId: string, 
   userId: string, 
@@ -192,10 +175,6 @@ export async function checkDocumentAccess(
   return hasRolePermission(permissions.effectiveRole as DocumentRole, requiredRole)
 }
 
-/**
- * Assign a role to a user or team for a document
- * Only owner or admin can assign roles
- */
 export async function assignDocumentRole(
   documentId: string,
   assignerId: string,
@@ -203,7 +182,6 @@ export async function assignDocumentRole(
   targetUserId?: string,
   targetTeamId?: string
 ): Promise<{ success: boolean; error?: string }> {
-  // Check if assigner has permission to assign roles
   const assignerPermissions = await getDocumentPermissions(documentId, assignerId)
   
   if (!assignerPermissions.canShare) {
@@ -211,7 +189,6 @@ export async function assignDocumentRole(
   }
 
   try {
-    // Check if role already exists and update or insert
     if (targetUserId) {
       const existing = await db.select()
         .from(documentRoles)
@@ -271,16 +248,12 @@ export async function assignDocumentRole(
   }
 }
 
-/**
- * Remove a role from a user or team for a document
- */
 export async function removeDocumentRole(
   documentId: string,
   removerId: string,
   targetUserId?: string,
   targetTeamId?: string
 ): Promise<{ success: boolean; error?: string }> {
-  // Check if remover has permission to remove roles
   const removerPermissions = await getDocumentPermissions(documentId, removerId)
   
   if (!removerPermissions.canShare) {

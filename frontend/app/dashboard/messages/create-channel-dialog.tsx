@@ -38,7 +38,7 @@ export function CreateChannelDialog({
     teamId: '',
     isPrivate: false,
     type: 0, // 0 = text channel, 2 = announcement channel
-    addAllTeamMembers: true // New option to add all team members
+    addAllTeamMembers: true
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -55,7 +55,6 @@ export function CreateChannelDialog({
         type: formData.type
       })
 
-      // If option is selected, add all team members to the channel
       if (formData.addAllTeamMembers && newChannel?.id) {
         try {
           const result = await channelsApi.addAllTeamMembers(newChannel.id, formData.teamId)
@@ -65,7 +64,6 @@ export function CreateChannelDialog({
         }
       }
 
-      // Reset form
       setFormData({
         name: '',
         description: '',

@@ -58,12 +58,10 @@ export default function DocumentsPage() {
   const [titleIsSuggested, setTitleIsSuggested] = useState(true);
   const router = useRouter();
 
-  // Load teams when the component mounts
   useEffect(() => {
     fetchTeams();
   }, []);
 
-  // Fetch documents based on filters (including initial load)
   useEffect(() => {
     fetchDocuments();
   }, [selectedTeam]);
@@ -73,7 +71,6 @@ export default function DocumentsPage() {
       setLoading(true);
       let response;
 
-
       if (selectedTeam && selectedTeam !== 'all') {
         const teamId = selectedTeam === 'personal' ? null : selectedTeam;
         response = await documentAPI.getDocuments(teamId);
@@ -81,15 +78,13 @@ export default function DocumentsPage() {
         response = await documentAPI.getDocuments();
       }
 
-
-      // Ensure we always set an array
       const docs = response?.data || response || [];
 
       setDocuments(Array.isArray(docs) ? docs : []);
       setError(null);
     } catch (err) {
       setError('Failed to load documents. Please try again.');
-      setDocuments([]); // Ensure documents is always an array on error
+      setDocuments([]);
     } finally {
       setLoading(false);
     }
@@ -120,7 +115,6 @@ export default function DocumentsPage() {
 
       const newDocument = response.data || response;
 
-      // Refresh the documents list to get updated data
       await fetchDocuments();
 
       setNewDocTitle('');
@@ -129,7 +123,6 @@ export default function DocumentsPage() {
       setTitleIsSuggested(true);
       setIsCreateDialogOpen(false);
 
-      // Navigate to the document editor
       router.push(`/dashboard/documents/${newDocument.id}`);
     } catch (err) {
       setError(`Failed to create document: ${err.response?.data?.message || err.message}`);
@@ -159,7 +152,6 @@ export default function DocumentsPage() {
       setLoading(true);
       await documentAPI.deleteDocument(docId);
 
-      // Refresh the documents list
       await fetchDocuments();
     } catch (err: any) {
       setError(`Failed to delete document: ${err.response?.data?.message || err.message}`);
@@ -168,14 +160,12 @@ export default function DocumentsPage() {
     }
   };
 
-  // Filter documents based on search term
   const filteredDocuments = Array.isArray(documents)
     ? documents.filter(doc =>
       doc?.title?.toLowerCase().includes(searchTerm.toLowerCase())
     )
     : [];
 
-  // Format date to a readable string
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
@@ -294,7 +284,6 @@ export default function DocumentsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
-          // Skeleton loaders for documents
           Array.from({ length: 6 }).map((_, i) => (
             <Card key={i} className="overflow-hidden">
               <CardHeader className="pb-2">

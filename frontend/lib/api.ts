@@ -3,22 +3,20 @@
 import axios from 'axios'
 import config from './config'
 
-// Use localhost URLs for local development
 const API_URL = config.apiUrl
 const DOCUMENT_API_URL = config.documentServiceUrl
 
 // Feature flag to disable separate document service if it's causing CORS issues
-const USE_SEPARATE_DOCUMENT_SERVICE = false // Set to false to always use main API
+const USE_SEPARATE_DOCUMENT_SERVICE = false
 
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
   },
-  withCredentials: true // Send HTTP-only cookies with requests
+  withCredentials: true
 })
 
-// Add request interceptor (tokens are in HTTP-only cookies, sent automatically)
 api.interceptors.request.use(
   (config) => {
     return config
@@ -26,13 +24,11 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Add response interceptor to handle authentication errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     // If 401 error, redirect to login (backend middleware handles token refresh automatically)
     if (error.response?.status === 401) {
-      // Skip redirect for login/auth endpoints
       const isAuthEndpoint = error.config?.url?.includes('/api/user/login') || 
                              error.config?.url?.includes('/api/verification/register') ||
                              error.config?.url?.includes('/api/auth/login')
@@ -54,7 +50,6 @@ api.interceptors.response.use(
 // Import from lib/authApi.ts instead
 export { authApi } from './authApi'
 
-// Organization-related API calls
 export const organizationsApi = {
   getAllOrganizations: async () => {
     const response = await api.get('/api/organizations')
@@ -93,12 +88,9 @@ export const organizationsApi = {
   }
 }
 
-// Document-related API calls
 export const documentsApi = {
-  // Alias for getAllDocuments for backward compatibility
   getDocuments: async (teamId?: string) => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const url = teamId 
@@ -106,15 +98,13 @@ export const documentsApi = {
             : `${DOCUMENT_API_URL}/documents`;
           
           const response = await axios.get(url, {
-            withCredentials: true // Use cookies instead of Authorization header
+            withCredentials: true
           });
           return response.data;
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const url = teamId 
         ? `/api/documents?teamId=${teamId}`
         : '/api/documents';
@@ -122,12 +112,11 @@ export const documentsApi = {
       const response = await api.get(url);
       return response.data;
     } catch (error) {
-      return [] // Return empty array instead of throwing
+      return []
     }
   },
   getAllDocuments: async () => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.get(`${DOCUMENT_API_URL}/documents`, {
@@ -135,21 +124,18 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.get('/api/documents')
       return response.data
     } catch (error) {
-      return [] // Return empty array instead of throwing
+      return []
     }
   },
   
   getDocument: async (documentId: string) => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.get(`${DOCUMENT_API_URL}/documents/${documentId}`, {
@@ -157,11 +143,9 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.get(`/api/documents/${documentId}`)
       return response.data
     } catch (error) {
@@ -171,7 +155,6 @@ export const documentsApi = {
   
   createDocument: async (documentData: any) => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.post(`${DOCUMENT_API_URL}/documents`, documentData, {
@@ -179,11 +162,9 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.post('/api/documents', documentData)
       return response.data
     } catch (error) {
@@ -193,7 +174,6 @@ export const documentsApi = {
   
   updateDocument: async (documentId: string, data: any) => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.put(`${DOCUMENT_API_URL}/documents/${documentId}`, data, {
@@ -201,11 +181,9 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.put(`/api/documents/${documentId}`, data)
       return response.data
     } catch (error) {
@@ -215,7 +193,6 @@ export const documentsApi = {
   
   deleteDocument: async (documentId: string) => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.delete(`${DOCUMENT_API_URL}/documents/${documentId}`, {
@@ -223,11 +200,9 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.delete(`/api/documents/${documentId}`)
       return response.data
     } catch (error) {
@@ -235,10 +210,8 @@ export const documentsApi = {
     }
   },
 
-  // WebRTC access verification
   verifyDocumentAccess: async (documentId: string) => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.post(`${DOCUMENT_API_URL}/documents/${documentId}/verify-access`, {}, {
@@ -246,11 +219,9 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.post(`/api/documents/${documentId}/verify-access`)
       return response.data
     } catch (error) {
@@ -258,10 +229,8 @@ export const documentsApi = {
     }
   },
 
-  // Document permission management
   getDocumentPermissions: async (documentId: string) => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.get(`${DOCUMENT_API_URL}/documents/${documentId}/permissions`, {
@@ -269,11 +238,9 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.get(`/api/documents/${documentId}/permissions`)
       return response.data
     } catch (error) {
@@ -287,7 +254,6 @@ export const documentsApi = {
     role: 'viewer' | 'commenter' | 'editor' | 'admin'
   }) => {
     try {
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.post(`${DOCUMENT_API_URL}/documents/${documentId}/permissions`, assignmentData, {
@@ -295,11 +261,9 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.post(`/api/documents/${documentId}/permissions`, assignmentData)
       return response.data
     } catch (error) {
@@ -316,7 +280,6 @@ export const documentsApi = {
       if (removalData.userId) params.append('userId', removalData.userId)
       if (removalData.teamId) params.append('teamId', removalData.teamId)
       
-      // Try to connect directly to the document service first
       if (USE_SEPARATE_DOCUMENT_SERVICE && DOCUMENT_API_URL && DOCUMENT_API_URL !== API_URL) {
         try {
           const response = await axios.delete(`${DOCUMENT_API_URL}/documents/${documentId}/permissions?${params.toString()}`, {
@@ -324,11 +287,9 @@ export const documentsApi = {
           })
           return response.data
         } catch (docServiceError) {
-          // Fall through to main API
         }
       }
       
-      // Fallback to main API
       const response = await api.delete(`/api/documents/${documentId}/permissions?${params.toString()}`)
       return response.data
     } catch (error) {
@@ -337,9 +298,7 @@ export const documentsApi = {
   }
 }
 
-// Task-related API calls
 export const tasksApi = {
-  // Move tasks into a status column and set their order within it
   reorder: async (status: number, taskIds: string[]) => {
     const response = await api.put('/api/tasks/reorder', { status, taskIds })
     return response.data
@@ -379,7 +338,6 @@ export const tasksApi = {
     assignedTo?: string | null,
     // Legacy support
     teamId?: string,
-    // New multi-team support
     teamIds?: string[],
     organizationId?: string
   }) => {
@@ -407,7 +365,6 @@ export const tasksApi = {
     return response.data;
   },
   
-  // New methods for organization and team-specific task management
   getOrganizationTasks: async (organizationId: string) => {
     return tasksApi.getAllTasks({ organizationId });
   },
@@ -417,13 +374,12 @@ export const tasksApi = {
   }
 }
 
-// Links between tasks and documents/messages
 export interface TaskReference {
   id: string
   kind: 'document' | 'message'
   targetId: string
-  title?: string            // documents
-  content?: string          // messages
+  title?: string
+  content?: string
   channelId?: string
   channelName?: string
   authorName?: string | null
@@ -438,7 +394,6 @@ export const taskReferencesApi = {
     (await api.get(`/api/documents/${documentId}/tasks`)).data
 }
 
-// Saved task views API calls
 export interface TaskViewFilters {
   status: string
   assignee: string
@@ -452,13 +407,11 @@ export const taskViewsApi = {
   remove: async (id: string) => (await api.delete(`/api/task-views/${id}`)).data
 }
 
-// Calendar subscription (.ics feed) API calls
 export const calendarApi = {
   getFeed: async (): Promise<{ url: string }> => (await api.get('/api/calendar/feed')).data,
   rotateFeed: async (): Promise<{ url: string }> => (await api.post('/api/calendar/feed/rotate')).data
 }
 
-// Task checklist and sub-item API calls
 export const taskItemsApi = {
   getChecklist: async (taskId: string) => (await api.get(`/api/tasks/${taskId}/checklist`)).data,
   addChecklistItem: async (taskId: string, content: string) => (await api.post(`/api/tasks/${taskId}/checklist`, { content })).data,
@@ -475,7 +428,6 @@ export const taskItemsApi = {
     (await api.post(`/api/tasks/${taskId}/subtasks`, data)).data
 }
 
-// Channel-related API calls
 export const channelsApi = {
   getAllChannels: async (teamId: string) => {
     const response = await api.get(`/api/channels?teamId=${teamId}`)
@@ -568,7 +520,6 @@ export const channelsApi = {
   }
 }
 
-// Direct Message-related API calls
 export const directMessagesApi = {
   getAllMessages: async (limit?: number) => {
     const url = limit
@@ -612,7 +563,6 @@ export const directMessagesApi = {
   }
 }
 
-// Document comments and suggestions API calls
 export const documentCommentsApi = {
   list: async (documentId: string) => (await api.get(`/api/documents/${documentId}/comments`)).data,
   add: async (documentId: string, data: { content: string, quote?: string, suggestion?: string, parentId?: string }) =>
@@ -623,7 +573,6 @@ export const documentCommentsApi = {
     (await api.delete(`/api/documents/${documentId}/comments/${commentId}`)).data
 }
 
-// Document version history API calls
 export const documentVersionsApi = {
   list: async (documentId: string) => (await api.get(`/api/documents/${documentId}/versions`)).data,
   get: async (documentId: string, versionId: string) => (await api.get(`/api/documents/${documentId}/versions/${versionId}`)).data,
@@ -632,7 +581,6 @@ export const documentVersionsApi = {
     (await api.post(`/api/documents/${documentId}/versions/${versionId}/restore`)).data
 }
 
-// Search API calls
 export interface SearchParams {
   q?: string
   types?: string[]
@@ -650,7 +598,6 @@ export const searchApi = {
   }
 }
 
-// Notification-related API calls
 export const notificationsApi = {
   list: async (limit?: number) => {
     const response = await api.get('/api/notifications', { params: { limit } })
@@ -678,7 +625,6 @@ export const notificationsApi = {
   }
 }
 
-// User-related API calls
 export const usersApi = {
   getCurrentUser: async () => {
     const response = await api.get('/api/user/me')
@@ -691,7 +637,6 @@ export const usersApi = {
   }
 }
 
-// Invitation-related API calls
 export const invitationsApi = {
   getMyInvitations: async () => {
     const response = await api.get('/api/invitations/my-invitations')
@@ -735,7 +680,6 @@ export const invitationsApi = {
   }
 }
 
-// Team-related API calls
 export const teamApi = {
   getTeams: async () => {
     const response = await api.get('/api/teams');
@@ -799,7 +743,6 @@ export const teamApi = {
   }
 }
 
-// For backward compatibility
 export const teamAPI = teamApi;
 
 export default api

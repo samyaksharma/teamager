@@ -14,8 +14,6 @@ router.use(verifyToken)
 // Same access rule as the task routes (see utils/taskAccess)
 const loadAccessibleTask = loadTaskForUser
 
-// ---- Checklist ----
-
 router.get('/:taskId/checklist', async (req, res) => {
   try {
     const access = await loadAccessibleTask(req.params.taskId, req.user!.userId)
@@ -98,8 +96,6 @@ router.delete('/:taskId/checklist/:itemId', async (req, res) => {
   }
 })
 
-// ---- Sub-items (child tasks, one level deep) ----
-
 router.get('/:taskId/subtasks', async (req, res) => {
   try {
     const access = await loadAccessibleTask(req.params.taskId, req.user!.userId)
@@ -169,8 +165,6 @@ router.post('/:taskId/subtasks', async (req, res) => {
     res.status(500).json({ message: 'Failed to create sub-item' })
   }
 })
-
-// ---- Links (git pull requests, commits, issues; shared files) ----
 
 router.get('/:taskId/links', async (req, res) => {
   try {

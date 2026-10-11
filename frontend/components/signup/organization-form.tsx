@@ -28,7 +28,6 @@ export function OrganizationForm({ initialData, onSubmit }: OrganizationFormProp
 
     // Only validate if all fields aren't empty (if user is trying to create an organization)
     if (formData.name.trim() || formData.size || formData.industry) {
-      // Validate form
       const newErrors: Partial<Record<keyof OrganizationData, string>> = {}
 
       if (!formData.name.trim()) {
@@ -49,13 +48,10 @@ export function OrganizationForm({ initialData, onSubmit }: OrganizationFormProp
       }
     }
 
-    // Submit form if validation passes
     onSubmit(formData)
   }
 
-  // Skip organization creation
   const handleSkip = () => {
-    // Submit empty organization data
     onSubmit({
       name: "",
       size: "",

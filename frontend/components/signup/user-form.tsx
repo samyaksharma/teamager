@@ -29,7 +29,6 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
   const [usernameChecking, setUsernameChecking] = useState(false)
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
 
-  // Auto-generate username when email changes
   useEffect(() => {
     if (formData.email && !formData.username) {
       const suggestedUsername = formData.email.split('@')[0].toLowerCase()
@@ -37,13 +36,10 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
     }
   }, [formData.email, formData.username])
 
-  // Check username availability with debounce
   useEffect(() => {
-    // Reset validation state immediately when username changes
     setUsernameAvailable(null)
     setUsernameChecking(false)
     
-    // Clear username errors when user starts typing a new username
     if (errors.username) {
       setErrors(prev => {
         const newErrors = { ...prev }
@@ -63,7 +59,6 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
         const response = await axios.get(`${API_URL}/api/auth/check-username?username=${formData.username}`)
         setUsernameAvailable(!response.data.exists)
         
-        // Clear username error if username becomes available
         if (!response.data.exists && errors.username) {
           setErrors(prev => {
             const newErrors = { ...prev }
@@ -81,7 +76,6 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
     return () => clearTimeout(timeoutId)
   }, [formData.username, errors.username])
 
-  // Clear errors when fields are corrected
   useEffect(() => {
     if (errors.name && formData.name.trim().length >= 2) {
       setErrors(prev => {
@@ -115,7 +109,6 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validate form
     const newErrors: Partial<Record<keyof UserData, string>> = {}
 
     if (!formData.name.trim()) {
@@ -163,10 +156,8 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
       return
     }
 
-    // Clear any previous errors
     setErrors({})
 
-    // Submit form if validation passes
     onSubmit(formData)
   }
 

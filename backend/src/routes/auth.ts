@@ -10,7 +10,6 @@ import e from 'express'
 
 const router = express.Router()
 
-// Check username availability
 router.get('/check-username', async (req, res) => {
   try {
     const { username } = req.query
@@ -33,17 +32,14 @@ router.get('/check-username', async (req, res) => {
   }
 })
 
-// Register new user - matches /api/verification/register
 router.post('/register', async (req, res) => {
   try {
     const { name, username, email, password } = req.body
 
-    // Validate required fields
     if (!name || !username || !email || !password) {
       return res.status(400).json({ message: 'All fields are required' })
     }
 
-    // Check if user already exists
     const existingUser = await db.select()
       .from(users)
       .where(eq(users.email, email))
@@ -53,7 +49,6 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this email' })
     }
 
-    // Check username availability
     const existingUsername = await db.select()
       .from(users)
       .where(eq(users.username, username))
@@ -63,10 +58,8 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Username is already taken' })
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create user
     const newUser = await db.insert(users)
       .values({
         name,
@@ -86,7 +79,7 @@ router.post('/register', async (req, res) => {
     // unconfigured mail server can never delay or fail signup).
     if (process.env.EMAIL_VERIFICATION === 'true') {
       const token = Math.random().toString(36).substring(2) + Date.now().toString(36)
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
       await db.insert(verificationTokens)
         .values({
@@ -110,7 +103,6 @@ router.post('/register', async (req, res) => {
   }
 })
 
-// Login user
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
@@ -119,7 +111,6 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' })
     }
 
-    // Find user
     const user = await db.select()
       .from(users)
       .where(eq(users.email, email))
@@ -129,13 +120,11 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user[0].password)
     if (!isValidPassword) {
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
-    // Generate tokens
     const tokenPayload = { userId: user[0].id, email: user[0].email }
     const accessToken = generateAccessToken(tokenPayload)
     const refreshToken = generateRefreshToken(tokenPayload)
@@ -145,14 +134,13 @@ router.post('/login', async (req, res) => {
       .values({
         userId: user[0].id,
         token: refreshToken,
-        // Add session tracking info
         ipAddress: req.ip,
         userAgent: req.get('User-Agent') || '',
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       })
 
     // Set ONLY access token in HTTP-only cookie (refresh token stays server-side)
-    res.cookie('accessToken', accessToken, cookieOptions(3 * 60 * 1000)) // 3 minutes
+    res.cookie('accessToken', accessToken, cookieOptions(3 * 60 * 1000))
 
     // Return user info only (NO tokens in response body)
     res.json({
@@ -171,7 +159,6 @@ router.post('/login', async (req, res) => {
   }
 })
 
-// Refresh token
 router.post('/refresh', async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken || req.body.refreshToken
@@ -180,10 +167,8 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ message: 'Refresh token required' })
     }
 
-    // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken)
 
-    // Check if refresh token exists in database
     const tokenRecord = await db.select()
       .from(refreshTokens)
       .where(and(
@@ -196,7 +181,6 @@ router.post('/refresh', async (req, res) => {
       return res.status(401).json({ message: 'Invalid refresh token' })
     }
 
-    // Generate new access token
     const newAccessToken = generateAccessToken({
       userId: decoded.userId,
       email: decoded.email
@@ -214,7 +198,6 @@ router.post('/refresh', async (req, res) => {
   }
 })
 
-// Logout
 router.post('/logout', verifyToken, async (req, res) => {
   try {
     // Remove ALL refresh tokens for this user from database (logout from all devices)
@@ -226,7 +209,6 @@ router.post('/logout', verifyToken, async (req, res) => {
       })
       .where(eq(refreshTokens.userId, req.user!.userId))
 
-    // Clear access token cookie
     res.clearCookie('accessToken', clearCookieOptions)
 
     res.json({ message: 'Logout successful' })
@@ -236,7 +218,6 @@ router.post('/logout', verifyToken, async (req, res) => {
   }
 })
 
-// Verify email
 router.post('/verify-email', async (req, res) => {
   try {
     const { token } = req.body
@@ -245,7 +226,6 @@ router.post('/verify-email', async (req, res) => {
       return res.status(400).json({ message: 'Verification token required' })
     }
 
-    // Find verification token
     const verificationToken = await db.select()
       .from(verificationTokens)
       .where(eq(verificationTokens.token, token))
@@ -255,17 +235,14 @@ router.post('/verify-email', async (req, res) => {
       return res.status(400).json({ message: 'Invalid verification token' })
     }
 
-    // Check if token is expired
     if (new Date() > verificationToken[0].expiresAt) {
       return res.status(400).json({ message: 'Verification token has expired' })
     }
 
-    // Update user as verified
     await db.update(users)
       .set({ emailVerified: true })
       .where(eq(users.id, verificationToken[0].userId))
 
-    // Delete verification token
     await db.delete(verificationTokens)
       .where(eq(verificationTokens.id, verificationToken[0].id))
 
@@ -276,7 +253,6 @@ router.post('/verify-email', async (req, res) => {
   }
 })
 
-// Get current user
 router.get('/me', verifyToken, async (req, res) => {
   try {
     const user = await db.select({

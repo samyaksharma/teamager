@@ -7,8 +7,8 @@ interface Task {
   id: string
   title: string
   description: string
-  status: string | number  // Allow both string and number
-  priority: string | number  // Allow both string and number
+  status: string | number
+  priority: string | number
   assignedTo?: string
   dueDate?: Date
   createdAt: Date
@@ -75,14 +75,12 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
   const [error, setError] = useState<Error | null>(null)
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
 
-  // Initial fetch and polling setup
   useEffect(() => {
     const fetchTasks = async () => {
       try {
         const fetchedTasks = await tasksApi.getAllTasks()
         setTasks(fetchedTasks)
         
-        // Update last fetch time
         setLastFetchTime(Date.now())
         setIsLoading(false)
       } catch (err) {
@@ -91,17 +89,14 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
 
-    // Function to poll for new or updated tasks
     const pollForTaskUpdates = async () => {
       try {
         const updatedTasks = await tasksApi.getAllTasks()
         
-        // Check for any new or updated tasks
         const hasChanges = updatedTasks.some(newTask => {
           const existingTask = tasks.find(task => task.id === newTask.id)
-          if (!existingTask) return true // New task
+          if (!existingTask) return true
           
-          // Check if task was updated after our last fetch
           const taskUpdateTime = new Date(newTask.updatedAt).getTime()
           return taskUpdateTime > lastFetchTime
         })
@@ -115,19 +110,15 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
     
-    // Initial fetch
     fetchTasks()
     
-    // Set up polling interval (every 5 seconds)
     const intervalId = setInterval(pollForTaskUpdates, 5000)
     
-    // Clean up on unmount
     return () => {
       clearInterval(intervalId)
     }
   }, [tasks, lastFetchTime])
 
-  // Create a new task
   const createTask = async (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const newTask = await tasksApi.createTask(taskData)
@@ -138,7 +129,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }
 
-  // Update an existing task
   const updateTask = async (taskId: string, changes: Partial<Task>) => {
     try {
       const updatedTask = await tasksApi.updateTask(taskId, changes)
@@ -155,7 +145,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }
 
-  // Delete a task
   const deleteTask = async (taskId: string) => {
     try {
       await tasksApi.deleteTask(taskId)
@@ -178,7 +167,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }
 
-  // Filter tasks by status
   const getTasksByStatus = (status: string) => {
     // Handle both string and integer status values
     if (status === 'backlog' || status === 'todo') {
@@ -191,7 +179,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     return tasks.filter(task => task.status === status)
   }
 
-  // Filter tasks by team
   const getTasksByTeam = (teamId: string) => {
     return tasks.filter(task => 
       task.teamId === teamId || 
@@ -199,7 +186,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     )
   }
 
-  // Filter tasks by organization
   const getTasksByOrganization = (orgId: string) => {
     return tasks.filter(task => task.organizationId === orgId)
   }

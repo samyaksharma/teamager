@@ -35,7 +35,6 @@ interface SuccessStepProps {
   onRestart?: () => void
 }
 
-
 export function SuccessStep({ data, onRestart }: SuccessStepProps) {
   const [isRegistering, setIsRegistering] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +54,6 @@ export function SuccessStep({ data, onRestart }: SuccessStepProps) {
         setIsRegistering(true)
         setError(null)
 
-        // Step 1: create the account
         const registration = {
           name: data.user.name?.trim(),
           username: data.user.username?.trim().toLowerCase(),
@@ -85,7 +83,6 @@ export function SuccessStep({ data, onRestart }: SuccessStepProps) {
         return
       }
 
-      // Step 2: sign in right away (no email verification step)
       try {
         const login = await authApi.login(data.user.email.trim().toLowerCase(), data.user.password)
         if (login.user) {

@@ -33,7 +33,6 @@ import { CalendarIcon, ChevronLeft, ChevronRight, Clock, Plus, Users, X } from "
 import { useSidebar } from "@/components/sidebar-toggle"
 import { CalendarSubscribe } from "@/components/calendar-subscribe"
 
-// Sample events data
 const EVENTS = [
   {
     id: 1,
@@ -47,13 +46,12 @@ const EVENTS = [
     ],
     color: "blue",
   },
-  // Other events...
 ]
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
-  const [view, setView] = useState("month") // month, week, day
+  const [view, setView] = useState("month")
   const [newEvent, setNewEvent] = useState({
     title: "",
     date: format(new Date(), "yyyy-MM-dd"),
@@ -66,12 +64,10 @@ export default function CalendarPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { isOpen, toggleSidebar } = useSidebar()
 
-  // Get days for the current month view
   const monthStart = startOfMonth(currentDate)
   const monthEnd = endOfMonth(currentDate)
   const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd })
 
-  // Get events for the selected date
   const getEventsForDate = (date: Date) => {
     return EVENTS.filter((event) => {
       const eventDate = parseISO(event.date)
@@ -79,7 +75,6 @@ export default function CalendarPage() {
     })
   }
 
-  // Get events for the current month
   const getEventsForDay = (day: Date) => {
     return EVENTS.filter((event) => {
       const eventDate = parseISO(event.date)
@@ -87,7 +82,6 @@ export default function CalendarPage() {
     })
   }
 
-  // Handle month navigation
   const previousMonth = () => {
     setCurrentDate((prev) => {
       const newDate = new Date(prev)
@@ -104,12 +98,10 @@ export default function CalendarPage() {
     })
   }
 
-  // Handle new event creation
   const handleCreateEvent = () => {
     // In a real app, you would save the event to your database
     console.log("Creating event:", newEvent)
     setIsDialogOpen(false)
-    // Reset form
     setNewEvent({
       title: "",
       date: format(new Date(), "yyyy-MM-dd"),
@@ -121,7 +113,6 @@ export default function CalendarPage() {
     })
   }
 
-  // Get color class for event
   const getEventColorClass = (color: string) => {
     switch (color) {
       case "blue":
@@ -139,12 +130,11 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
+      
       {isOpen && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden" onClick={toggleSidebar} />
       )}
 
-      {/* Calendar Header */}
       <div className="flex items-center justify-between p-4 md:p-6 border-b">
         <div className="flex items-center gap-4">
           <h1 className="text-xl font-semibold">Calendar</h1>
@@ -300,18 +290,16 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Calendar Content */}
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {view === "month" && (
           <div className="grid grid-cols-7 gap-2">
-            {/* Day headers */}
+            
             {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
               <div key={day} className="text-center font-medium text-sm py-2">
                 {day}
               </div>
             ))}
 
-            {/* Calendar days */}
             {monthDays.map((day, i) => {
               const dayEvents = getEventsForDay(day)
               const isToday = isSameDay(day, new Date())
@@ -401,7 +389,7 @@ export default function CalendarPage() {
         {view === "week" && (
           <div className="space-y-4">
             <div className="grid grid-cols-7 gap-2">
-              {/* Day headers for the week */}
+              
               {Array.from({ length: 7 }, (_, i) => {
                 const day = addDays(selectedDate || new Date(), i - (selectedDate?.getDay() || 0))
                 return (
@@ -422,7 +410,7 @@ export default function CalendarPage() {
             </div>
 
             <div className="grid grid-cols-7 gap-2 mt-2">
-              {/* Events for each day of the week */}
+              
               {Array.from({ length: 7 }, (_, i) => {
                 const day = addDays(selectedDate || new Date(), i - (selectedDate?.getDay() || 0))
                 const dayEvents = getEventsForDay(day)

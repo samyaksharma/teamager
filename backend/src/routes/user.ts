@@ -10,7 +10,6 @@ import { sendSessionNotification } from '../utils/notifications'
 
 const router = express.Router()
 
-// Login user - matches frontend /api/user/login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body
@@ -19,7 +18,6 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' })
     }
 
-    // Find user
     const user = await db.select()
       .from(users)
       .where(eq(users.email, email))
@@ -29,28 +27,23 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
-    // Verify password
     const isValidPassword = await bcrypt.compare(password, user[0].password)
     if (!isValidPassword) {
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
-    // Generate tokens
     const tokenPayload = { userId: user[0].id, email: user[0].email }
     const accessToken = generateAccessToken(tokenPayload)
     const refreshToken = generateRefreshToken(tokenPayload)
     
-    // Get session information
     const sessionInfo = getSessionInfo(req)
     
     // Enforce token limits (max 5 devices per user)
     await enforceTokenLimit(user[0].id, 5)
     
-    // Calculate expiration date (7 days from now)
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 7)
 
-    // Store refresh token with session tracking
     await db.insert(refreshTokens)
       .values({
         userId: user[0].id,
@@ -64,21 +57,19 @@ router.post('/login', async (req, res) => {
         expiresAt,
         lastUsedAt: new Date(),
         isActive: true,
-        isPrimaryDevice: false // Can be updated later by user
+        isPrimaryDevice: false
       })
 
-    // Set access token in HTTP-only cookie
     const accessCookieSettings = cookieOptions(7 * 24 * 60 * 60 * 1000) // 7 days (matches refresh token expiry)
     
     // Set refresh token in separate HTTP-only cookie for middleware access
-    const refreshCookieSettings = cookieOptions(7 * 24 * 60 * 60 * 1000) // 7 days
+    const refreshCookieSettings = cookieOptions(7 * 24 * 60 * 60 * 1000)
     
     res.cookie('accessToken', accessToken, accessCookieSettings)
     res.cookie('refreshToken', refreshToken, refreshCookieSettings)
 
     // NOTE: Both tokens stored in secure HTTP-only cookies + refresh token in database for validation
-    
-    
+
     // Send email notification for new login (async, don't wait)
     sendSessionNotification({
       userName: user[0].name,
@@ -107,7 +98,6 @@ router.post('/login', async (req, res) => {
   }
 })
 
-// Logout user - matches frontend /api/user/logout
 router.post('/logout', verifyToken, async (req, res) => {
   try {
     // Revoke ALL refresh tokens for this user (logout from all devices)
@@ -118,9 +108,7 @@ router.post('/logout', verifyToken, async (req, res) => {
         revokeReason: 'user_logout'
       })
       .where(eq(refreshTokens.userId, req.user!.userId))
-      
 
-    // Clear both access token and refresh token cookies
     res.clearCookie('accessToken', clearCookieOptions)
     res.clearCookie('refreshToken', clearCookieOptions)
 
@@ -131,7 +119,6 @@ router.post('/logout', verifyToken, async (req, res) => {
   }
 })
 
-// Get current user - matches frontend /api/user/me
 router.get('/me', verifyToken, async (req, res) => {
   try {
     const user = await db.select({
@@ -158,13 +145,11 @@ router.get('/me', verifyToken, async (req, res) => {
   }
 })
 
-// Update current user - matches frontend PUT /api/user/me
 router.put('/me', verifyToken, async (req, res) => {
   try {
     const { name, username, email, avatarUrl } = req.body
     const userId = req.user!.userId
 
-    // Build update object with only provided fields
     const updateData: any = {}
     if (name !== undefined) {
       const trimmed = typeof name === 'string' ? name.trim() : ''
@@ -193,7 +178,6 @@ router.put('/me', verifyToken, async (req, res) => {
       return res.status(400).json({ message: 'No update data provided' })
     }
 
-    // Username and email must not belong to anyone else
     if (updateData.username) {
       const taken = await db.select({ id: users.id }).from(users)
         .where(and(sql`lower(${users.username}) = ${updateData.username.toLowerCase()}`, ne(users.id, userId))).limit(1)
@@ -210,7 +194,6 @@ router.put('/me', verifyToken, async (req, res) => {
       }
     }
 
-    // Update user
     const updatedUser = await db.update(users)
       .set(updateData)
       .where(eq(users.id, userId))
@@ -231,7 +214,6 @@ router.put('/me', verifyToken, async (req, res) => {
   }
 })
 
-// Refresh token - matches frontend /api/user/refresh-token
 router.post('/refresh-token', async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken || req.body.refreshToken
@@ -240,10 +222,8 @@ router.post('/refresh-token', async (req, res) => {
       return res.status(401).json({ message: 'Refresh token required' })
     }
 
-    // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken)
 
-    // Check if refresh token exists in database and is active
     const tokenRecord = await db.select()
       .from(refreshTokens)
       .where(and(
@@ -257,9 +237,7 @@ router.post('/refresh-token', async (req, res) => {
       return res.status(401).json({ message: 'Invalid or revoked refresh token' })
     }
     
-    // Check if token is expired
     if (tokenRecord[0].expiresAt && tokenRecord[0].expiresAt < new Date()) {
-      // Mark as expired
       await db.update(refreshTokens)
         .set({
           isActive: false,
@@ -271,23 +249,20 @@ router.post('/refresh-token', async (req, res) => {
       return res.status(401).json({ message: 'Refresh token expired' })
     }
 
-    // Update last used timestamp
     await db.update(refreshTokens)
       .set({ lastUsedAt: new Date() })
       .where(eq(refreshTokens.token, refreshToken))
 
-    // Generate new access token
     const newAccessToken = generateAccessToken({
       userId: decoded.userId,
       email: decoded.email
     })
 
     res.cookie('accessToken', newAccessToken, cookieOptions(15 * 60 * 1000))
-    
 
     res.json({
       message: 'Token refreshed successfully',
-      accessToken: newAccessToken // Frontend expects this
+      accessToken: newAccessToken
     })
   } catch (error) {
     console.error('Token refresh error:', error)
@@ -295,7 +270,6 @@ router.post('/refresh-token', async (req, res) => {
   }
 })
 
-// Forgot password - matches frontend /api/user/forgot-password
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body
@@ -304,7 +278,6 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(400).json({ message: 'Email is required' })
     }
 
-    // Check if user exists
     const user = await db.select()
       .from(users)
       .where(eq(users.email, email))
@@ -317,7 +290,7 @@ router.post('/forgot-password', async (req, res) => {
 
     // Generate reset token (reusing verification tokens table)
     const token = Math.random().toString(36).substring(2) + Date.now().toString(36)
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000)
 
     await db.insert(verificationTokens)
       .values({
@@ -326,7 +299,6 @@ router.post('/forgot-password', async (req, res) => {
         expiresAt
       })
 
-
     res.json({ message: 'If the email exists, a reset link has been sent' })
   } catch (error) {
     console.error('Forgot password error:', error)
@@ -334,7 +306,6 @@ router.post('/forgot-password', async (req, res) => {
   }
 })
 
-// Reset password - matches frontend /api/user/reset-password
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, password } = req.body
@@ -343,7 +314,6 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ message: 'Token and password are required' })
     }
 
-    // Find and verify token
     const verificationToken = await db.select()
       .from(verificationTokens)
       .where(eq(verificationTokens.token, token))
@@ -357,15 +327,12 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ message: 'Reset token has expired' })
     }
 
-    // Hash new password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Update user password
     await db.update(users)
       .set({ password: hashedPassword })
       .where(eq(users.id, verificationToken[0].userId))
 
-    // Delete the token
     await db.delete(verificationTokens)
       .where(eq(verificationTokens.id, verificationToken[0].id))
 
@@ -376,9 +343,6 @@ router.post('/reset-password', async (req, res) => {
   }
 })
 
-// Session Management Endpoints
-
-// Get all active sessions for current user
 router.get('/sessions', verifyToken, async (req, res) => {
   try {
     const userId = req.user!.userId
@@ -404,7 +368,6 @@ router.get('/sessions', verifyToken, async (req, res) => {
       ))
       .orderBy(desc(refreshTokens.lastUsedAt))
 
-    // Mark current session and hide token
     const sessionsWithCurrentFlag = sessions.map(session => ({
       ...session,
       isCurrent: session.isCurrent === currentRefreshToken,
@@ -418,14 +381,12 @@ router.get('/sessions', verifyToken, async (req, res) => {
   }
 })
 
-// Revoke a specific session
 router.delete('/sessions/:sessionId', verifyToken, async (req, res) => {
   try {
     const { sessionId } = req.params
     const userId = req.user!.userId
     const currentRefreshToken = req.cookies.refreshToken
 
-    // Get the session to revoke
     const sessionToRevoke = await db.select()
       .from(refreshTokens)
       .where(and(
@@ -463,7 +424,6 @@ router.delete('/sessions/:sessionId', verifyToken, async (req, res) => {
       }
     }
 
-    // Revoke the session
     await db.update(refreshTokens)
       .set({
         isActive: false,
@@ -473,7 +433,6 @@ router.delete('/sessions/:sessionId', verifyToken, async (req, res) => {
       })
       .where(eq(refreshTokens.id, parseInt(sessionId)))
 
-    
     // Send email notification (async, don't wait)
     const user = await db.select({ name: users.name, email: users.email })
       .from(users)
@@ -498,13 +457,11 @@ router.delete('/sessions/:sessionId', verifyToken, async (req, res) => {
   }
 })
 
-// Revoke all other sessions (logout everywhere else)
 router.post('/sessions/revoke-all', verifyToken, async (req, res) => {
   try {
     const userId = req.user!.userId
     const currentRefreshToken = req.cookies.refreshToken
 
-    // Check current session age for security
     const currentSession = await db.select()
       .from(refreshTokens)
       .where(eq(refreshTokens.token, currentRefreshToken))
@@ -522,7 +479,6 @@ router.post('/sessions/revoke-all', verifyToken, async (req, res) => {
       }
     }
 
-    // Get all other active sessions
     const otherSessions = await db.select()
       .from(refreshTokens)
       .where(and(
@@ -538,7 +494,6 @@ router.post('/sessions/revoke-all', verifyToken, async (req, res) => {
       })
     }
 
-    // Revoke all other sessions
     await db.update(refreshTokens)
       .set({
         isActive: false,
@@ -552,7 +507,6 @@ router.post('/sessions/revoke-all', verifyToken, async (req, res) => {
         ne(refreshTokens.token, currentRefreshToken)
       ))
 
-    
     // Send email notification (async, don't wait)
     const user = await db.select({ name: users.name, email: users.email })
       .from(users)
@@ -581,7 +535,6 @@ router.post('/sessions/revoke-all', verifyToken, async (req, res) => {
   }
 })
 
-// Get session audit log
 router.get('/sessions/audit', verifyToken, async (req, res) => {
   try {
     const userId = req.user!.userId
@@ -598,13 +551,11 @@ router.get('/sessions/audit', verifyToken, async (req, res) => {
   }
 })
 
-// Update session as primary device
 router.put('/sessions/:sessionId/primary', verifyToken, async (req, res) => {
   try {
     const { sessionId } = req.params
     const userId = req.user!.userId
 
-    // Verify session belongs to user
     const session = await db.select()
       .from(refreshTokens)
       .where(and(
@@ -618,7 +569,6 @@ router.put('/sessions/:sessionId/primary', verifyToken, async (req, res) => {
       return res.status(404).json({ message: 'Session not found' })
     }
 
-    // Remove primary flag from all other sessions
     await db.update(refreshTokens)
       .set({ isPrimaryDevice: false })
       .where(and(
@@ -626,7 +576,6 @@ router.put('/sessions/:sessionId/primary', verifyToken, async (req, res) => {
         eq(refreshTokens.isActive, true)
       ))
 
-    // Set this session as primary
     await db.update(refreshTokens)
       .set({ isPrimaryDevice: true })
       .where(eq(refreshTokens.id, parseInt(sessionId)))
@@ -638,7 +587,6 @@ router.put('/sessions/:sessionId/primary', verifyToken, async (req, res) => {
   }
 })
 
-// Search users - for adding to teams
 router.get('/search', verifyToken, async (req, res) => {
   try {
     const { q: query, limit = 10 } = req.query
@@ -651,7 +599,6 @@ router.get('/search', verifyToken, async (req, res) => {
       return res.status(400).json({ message: 'Search query must be at least 2 characters' })
     }
     
-    // Search users by name, username, or email
     const searchPattern = `%${query}%`
     const searchUsers = await db.select({
       id: users.id,

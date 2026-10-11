@@ -12,7 +12,6 @@ router.use(verifyToken)
 
 const MAX_LISTED = 100
 
-// List versions (newest first), without content
 router.get('/:docId/versions', async (req, res) => {
   try {
     const { docId } = req.params
@@ -42,7 +41,6 @@ router.get('/:docId/versions', async (req, res) => {
   }
 })
 
-// Get one version, with content
 router.get('/:docId/versions/:versionId', async (req, res) => {
   try {
     const { docId, versionId } = req.params
@@ -72,7 +70,6 @@ router.get('/:docId/versions/:versionId', async (req, res) => {
   }
 })
 
-// Save the current content as a named version
 router.post('/:docId/versions', async (req, res) => {
   try {
     const { docId } = req.params

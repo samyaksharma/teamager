@@ -25,7 +25,6 @@ export function useOpenNew(kind: NewKind, open: () => void) {
           open()
         }
       } catch {
-        // ignore
       }
     }
     consume()

@@ -5,10 +5,6 @@
  * All enums use integer values for consistency with the backend.
  */
 
-// =============================================================================
-// TASK ENUMS
-// =============================================================================
-
 export enum TaskPriority {
   LOW = 0,
   MEDIUM = 1,
@@ -34,10 +30,6 @@ export enum TaskType {
   EPIC = 5
 }
 
-// =============================================================================
-// ROLE ENUMS
-// =============================================================================
-
 export enum OrganizationRole {
   MEMBER = 0,
   ADMIN = 1,
@@ -58,10 +50,6 @@ export enum DocumentRole {
   ADMIN = 3
 }
 
-// =============================================================================
-// COMMUNICATION ENUMS
-// =============================================================================
-
 export enum ChannelType {
   TEXT = 0,
   VOICE = 1,
@@ -75,10 +63,6 @@ export enum MessageType {
   IMAGE = 2,
   SYSTEM = 3
 }
-
-// =============================================================================
-// USER & SESSION ENUMS
-// =============================================================================
 
 export enum UserStatus {
   PENDING = 0,
@@ -94,10 +78,6 @@ export enum InvitationStatus {
   EXPIRED = 3,
   CANCELLED = 4
 }
-
-// =============================================================================
-// DISPLAY LABELS
-// =============================================================================
 
 export const EnumLabels = {
   TaskPriority: {
@@ -168,13 +148,6 @@ export const EnumLabels = {
   }
 } as const
 
-// =============================================================================
-// UI UTILITIES
-// =============================================================================
-
-/**
- * Get options for Select components
- */
 export const getEnumOptions = {
   TaskPriority: () => Object.entries(EnumLabels.TaskPriority).map(([value, label]) => ({
     value: parseInt(value),
@@ -207,9 +180,6 @@ export const getEnumOptions = {
   }))
 }
 
-/**
- * Get display label for enum value
- */
 export const getEnumLabel = {
   TaskPriority: (value: TaskPriority): string => EnumLabels.TaskPriority[value] || 'Unknown',
   TaskStatus: (value: TaskStatus): string => EnumLabels.TaskStatus[value] || 'Unknown',
@@ -219,9 +189,6 @@ export const getEnumLabel = {
   DocumentRole: (value: DocumentRole): string => EnumLabels.DocumentRole[value] || 'Unknown'
 }
 
-/**
- * CSS classes for different enum values
- */
 export const getEnumStyles = {
   TaskPriority: (priority: TaskPriority) => {
     switch (priority) {
@@ -277,9 +244,6 @@ export const getEnumStyles = {
   }
 }
 
-/**
- * Icon mappings for enum values
- */
 export const getEnumIcon = {
   TaskPriority: (priority: TaskPriority) => {
     switch (priority) {
@@ -316,9 +280,6 @@ export const getEnumIcon = {
   }
 }
 
-/**
- * Permission checking utilities
- */
 export const hasPermission = {
   organization: (userRole: OrganizationRole, requiredRole: OrganizationRole): boolean => {
     return userRole >= requiredRole
@@ -333,9 +294,6 @@ export const hasPermission = {
   }
 }
 
-/**
- * Validation utilities
- */
 export const isValidEnum = {
   TaskPriority: (value: any): value is TaskPriority => {
     return Object.values(TaskPriority).includes(value)

@@ -12,7 +12,6 @@ const router = express.Router()
 const KINDS = ['document', 'message'] as const
 type Kind = typeof KINDS[number]
 
-// Can the user see this document or message?
 async function canSeeTarget(kind: Kind, targetId: string, userId: string): Promise<boolean> {
   if (kind === 'document') {
     return checkDocumentAccess(targetId, userId, DocumentRole.VIEWER)
@@ -121,7 +120,6 @@ router.delete('/tasks/:taskId/references/:refId', verifyToken, async (req, res) 
   }
 })
 
-// Tasks linked to a document (the ones the user can see)
 router.get('/documents/:docId/tasks', verifyToken, async (req, res) => {
   try {
     const userId = req.user!.userId

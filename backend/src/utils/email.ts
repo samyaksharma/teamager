@@ -16,7 +16,6 @@ export const sendVerificationEmail = async (email: string, token: string) => {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
   const verificationUrl = `${frontendUrl}/verify-email?token=${token}`
   
-  // In development, log to console instead of sending email
   if (process.env.NODE_ENV !== 'production') {
     console.log('\n🔗 EMAIL VERIFICATION LINK (Development Mode):')
     console.log(`   Email: ${email}`)
@@ -25,7 +24,6 @@ export const sendVerificationEmail = async (email: string, token: string) => {
     return
   }
 
-  // In production, send actual email
   const transporter = createTransporter()
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -50,7 +48,6 @@ export const sendVerificationEmail = async (email: string, token: string) => {
 }
 
 export const sendEmail = async (to: string, subject: string, text: string) => {
-  // In development, log to console instead of sending email
   if (process.env.NODE_ENV !== 'production') {
     console.log('\n📧 EMAIL (Development Mode):')
     console.log(`   To: ${to}`)
@@ -60,7 +57,6 @@ export const sendEmail = async (to: string, subject: string, text: string) => {
     return
   }
 
-  // In production, send actual email
   const transporter = createTransporter()
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -76,7 +72,6 @@ export const sendInvitationEmail = async (email: string, teamName: string, invit
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
   const invitationUrl = `${frontendUrl}/invite/${token}`
   
-  // In development, log to console instead of sending email
   if (process.env.NODE_ENV !== 'production') {
     console.log('\n📧 TEAM INVITATION LINK (Development Mode):')
     console.log(`   Invited: ${email}`)
@@ -87,7 +82,6 @@ export const sendInvitationEmail = async (email: string, teamName: string, invit
     return
   }
 
-  // In production, send actual email
   const transporter = createTransporter()
   const mailOptions = {
     from: process.env.EMAIL_USER,

@@ -10,10 +10,8 @@ import { visibleTaskIds } from '../utils/taskAccess'
 
 const router = express.Router()
 
-// Apply auth middleware to all routes
 router.use(verifyToken)
 
-// Get channels - matches frontend GET /api/channels?teamId={teamId}
 router.get('/', async (req, res) => {
   try {
     const { teamId } = req.query
@@ -23,7 +21,6 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ message: 'teamId query parameter is required' })
     }
 
-    // Check if user is member of the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -36,7 +33,6 @@ router.get('/', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this team' })
     }
 
-    // Get channels for the team
     const teamChannels = await db.select({
       id: channels.id,
       name: channels.name,
@@ -61,13 +57,11 @@ router.get('/', async (req, res) => {
   }
 })
 
-// Get channel by ID - matches frontend GET /api/channels/{channelId}
 router.get('/:channelId', async (req, res) => {
   try {
     const { channelId } = req.params
     const userId = req.user!.userId
 
-    // Get channel with creator info
     const channel = await db.select({
       id: channels.id,
       name: channels.name,
@@ -91,7 +85,6 @@ router.get('/:channelId', async (req, res) => {
 
     const channelData = channel[0]
 
-    // Check if user has access to the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -111,13 +104,11 @@ router.get('/:channelId', async (req, res) => {
   }
 })
 
-// Get default channel for team - matches frontend GET /api/channels/team/{teamId}/default
 router.get('/team/:teamId/default', async (req, res) => {
   try {
     const { teamId } = req.params
     const userId = req.user!.userId
 
-    // Check team access
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -130,7 +121,6 @@ router.get('/team/:teamId/default', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this team' })
     }
 
-    // Get default channel
     const defaultChannel = await db.select({
       id: channels.id,
       name: channels.name,
@@ -162,7 +152,6 @@ router.get('/team/:teamId/default', async (req, res) => {
   }
 })
 
-// Create channel - matches frontend POST /api/channels
 router.post('/', async (req, res) => {
   try {
     const { name, description, teamId, type = 0, isPrivate = false } = req.body
@@ -172,7 +161,6 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Channel name and teamId are required' })
     }
 
-    // Check if user is admin/moderator of the team (only admins can create channels)
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -185,13 +173,11 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this team' })
     }
 
-    // Check if user has admin permissions (lead or contributor can create channels)
     const userRole = teamMembership[0].role
     if (userRole !== TeamRole.LEAD && userRole !== TeamRole.CONTRIBUTOR) {
       return res.status(403).json({ message: 'Only team leads and contributors can create channels' })
     }
 
-    // Create channel
     const newChannel = await db.insert(channels)
       .values({
         name,
@@ -203,7 +189,6 @@ router.post('/', async (req, res) => {
       })
       .returning()
 
-    // Get created channel with creator info
     const channelWithCreator = await db.select({
       id: channels.id,
       name: channels.name,
@@ -228,14 +213,12 @@ router.post('/', async (req, res) => {
   }
 })
 
-// Update channel - matches frontend PUT /api/channels/{channelId}
 router.put('/:channelId', async (req, res) => {
   try {
     const { channelId } = req.params
     const { name, description, isPrivate, type } = req.body
     const userId = req.user!.userId
 
-    // Get channel and check access
     const channel = await db.select()
       .from(channels)
       .where(eq(channels.id, channelId))
@@ -247,13 +230,12 @@ router.put('/:channelId', async (req, res) => {
 
     const channelData = channel[0]
 
-    // Check team access and admin privileges
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
         eq(teamUsers.teamId, channelData.teamId),
         eq(teamUsers.userId, userId),
-        eq(teamUsers.role, TeamRole.LEAD) // Team lead role
+        eq(teamUsers.role, TeamRole.LEAD)
       ))
       .limit(1)
 
@@ -261,7 +243,6 @@ router.put('/:channelId', async (req, res) => {
       return res.status(403).json({ message: 'Only team admins or channel creator can update channel' })
     }
 
-    // Build update object
     const updateData: any = {}
     if (name !== undefined) updateData.name = name
     if (description !== undefined) updateData.description = description
@@ -272,12 +253,10 @@ router.put('/:channelId', async (req, res) => {
       return res.status(400).json({ message: 'No update data provided' })
     }
 
-    // Update channel
     await db.update(channels)
       .set(updateData)
       .where(eq(channels.id, channelId))
 
-    // Get updated channel with creator info
     const updatedChannel = await db.select({
       id: channels.id,
       name: channels.name,
@@ -302,7 +281,6 @@ router.put('/:channelId', async (req, res) => {
   }
 })
 
-// Shared helpers for message features
 const messageSelect = {
   id: messages.id,
   content: messages.content,
@@ -316,7 +294,6 @@ const messageSelect = {
   userAvatar: users.avatarUrl
 }
 
-// Returns the channel if the user is in its team, otherwise null
 async function getAccessibleChannel(channelId: string, userId: string, write = false) {
   const channel = await db.select().from(channels).where(eq(channels.id, channelId)).limit(1)
   if (channel.length === 0) return { error: 404, message: 'Channel not found' } as const
@@ -369,7 +346,6 @@ async function withReactionsAndReplies<T extends { id: string }>(rows: T[], view
   })
 }
 
-// Get channel messages - matches frontend GET /api/channels/{channelId}/messages
 router.get('/:channelId/messages', async (req, res) => {
   try {
     const { channelId } = req.params
@@ -412,7 +388,6 @@ router.get('/:channelId/messages', async (req, res) => {
   }
 })
 
-// Get replies in a thread
 router.get('/:channelId/messages/:messageId/replies', async (req, res) => {
   try {
     const { channelId, messageId } = req.params
@@ -434,7 +409,6 @@ router.get('/:channelId/messages/:messageId/replies', async (req, res) => {
   }
 })
 
-// Toggle a reaction on a message
 router.post('/:channelId/messages/:messageId/reactions', async (req, res) => {
   try {
     const { channelId, messageId } = req.params
@@ -475,7 +449,6 @@ router.post('/:channelId/messages/:messageId/reactions', async (req, res) => {
   }
 })
 
-// Create a task from a message
 router.post('/:channelId/messages/:messageId/task', async (req, res) => {
   try {
     const { channelId, messageId } = req.params
@@ -520,7 +493,6 @@ router.post('/:channelId/messages/:messageId/task', async (req, res) => {
   }
 })
 
-// Create channel message - matches frontend POST /api/channels/{channelId}/messages
 router.post('/:channelId/messages', async (req, res) => {
   try {
     const { channelId } = req.params
@@ -531,7 +503,6 @@ router.post('/:channelId/messages', async (req, res) => {
       return res.status(400).json({ message: 'Message content is required' })
     }
 
-    // Check channel access
     const channel = await db.select()
       .from(channels)
       .where(eq(channels.id, channelId))
@@ -543,7 +514,6 @@ router.post('/:channelId/messages', async (req, res) => {
 
     const channelData = channel[0]
 
-    // Check team access
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -570,7 +540,6 @@ router.post('/:channelId/messages', async (req, res) => {
       threadParentAuthor = parent[0].userId
     }
 
-    // Create message
     const newMessage = await db.insert(messages)
       .values({
         content: content.trim(),
@@ -604,7 +573,6 @@ router.post('/:channelId/messages', async (req, res) => {
       await notify({ userId: threadParentAuthor, actorId: userId, module: 'messages', type: 'thread_reply', title: 'replied to your message', body: content.trim(), link: '/dashboard/messages' })
     }
 
-    // Get message with user info
     const messageWithUser = await db.select(messageSelect)
       .from(messages)
       .leftJoin(users, eq(messages.userId, users.id))
@@ -619,7 +587,6 @@ router.post('/:channelId/messages', async (req, res) => {
   }
 })
 
-// Pin / unpin a channel message
 const setMessagePinned = (pinned: boolean) => async (req: express.Request, res: express.Response) => {
   try {
     const { channelId, messageId } = req.params
@@ -659,13 +626,11 @@ const setMessagePinned = (pinned: boolean) => async (req: express.Request, res: 
 router.put('/:channelId/messages/:messageId/pin', setMessagePinned(true))
 router.delete('/:channelId/messages/:messageId/pin', setMessagePinned(false))
 
-// Check if user can create channels in a team
 router.get('/can-create/:teamId', async (req, res) => {
   try {
     const { teamId } = req.params
     const userId = req.user!.userId
 
-    // Check if user is admin/moderator of the team
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -678,7 +643,6 @@ router.get('/can-create/:teamId', async (req, res) => {
       return res.json({ canCreate: false, reason: 'Not a team member' })
     }
 
-    // Check if user has admin permissions (lead or admin can create channels)
     const userRole = teamMembership[0].role
     const canCreate = userRole === TeamRole.LEAD || userRole === TeamRole.CONTRIBUTOR
 
@@ -693,7 +657,6 @@ router.get('/can-create/:teamId', async (req, res) => {
   }
 })
 
-// Add all team members to a channel - POST /api/channels/{channelId}/add-team-members
 router.post('/:channelId/add-team-members', async (req, res) => {
   try {
     const { channelId } = req.params
@@ -704,7 +667,6 @@ router.post('/:channelId/add-team-members', async (req, res) => {
       return res.status(400).json({ message: 'teamId is required' })
     }
 
-    // Get channel and verify it exists
     const channel = await db.select()
       .from(channels)
       .where(eq(channels.id, channelId))
@@ -716,7 +678,6 @@ router.post('/:channelId/add-team-members', async (req, res) => {
 
     const channelData = channel[0]
 
-    // Check if user has permission to add members (team lead/admin or channel creator)
     const teamMembership = await db.select()
       .from(teamUsers)
       .where(and(
@@ -736,7 +697,6 @@ router.post('/:channelId/add-team-members', async (req, res) => {
       return res.status(403).json({ message: 'Only team leads, admins, or channel creator can add members' })
     }
 
-    // Get all team members
     const teamMembers = await db.select({
       userId: teamUsers.userId,
       userName: users.name,

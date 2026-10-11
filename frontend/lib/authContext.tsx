@@ -39,19 +39,15 @@ interface Team {
 }
 
 interface AuthContextType {
-  // Auth state
   user: User | null
   isLoading: boolean
   isAuthenticated: boolean
   
-  // Organization state
   currentOrganization: Organization | null
   organizations: Organization[]
   
-  // Teams state
   teams: Team[]
   
-  // Actions
   setUser: (user: User | null) => void
   setCurrentOrganization: (org: Organization | null) => void
   setOrganizations: (orgs: Organization[]) => void
@@ -82,7 +78,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const userData = await usersApi.getCurrentUser()
       if (userData?.id) {
         setUser(userData)
-        // User data is now managed entirely through HTTP-only cookies on the server
       }
     } catch (error) {
     }
@@ -93,7 +88,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const orgsData = await organizationsApi.getAllOrganizations()
       setOrganizations(orgsData || [])
       
-      // Set current organization if not set and we have organizations
       if (!currentOrganization && orgsData && orgsData.length > 0) {
         setCurrentOrganization(orgsData[0])
       }
@@ -109,17 +103,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  // Initialize auth state and fetch data
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         
-        // Set a shorter timeout for faster feedback
         const authTimeout = setTimeout(() => {
           if (!user) {
-            setIsLoading(false) // Allow UI to render with proper loading states
+            setIsLoading(false)
           }
-        }, 1000) // 1 second timeout instead of waiting indefinitely
+        }, 1000)
         
         // Verify authentication with server immediately (access token in HTTP-only cookie)
         // We'll rely on the server's HTTP-only cookies for security instead of localStorage
@@ -131,7 +123,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setUser(userData)
             setIsLoading(false)
             
-            // Load org/team data only after successful authentication
             Promise.all([
               refreshOrganizations(),
               refreshTeams()
@@ -140,7 +131,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } catch (error) {
           clearTimeout(authTimeout)
           
-          // If 401, user is not authenticated - clear everything
           if (error.response?.status === 401) {
             clearStoredData()
             setUser(null)
@@ -150,7 +140,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setIsLoading(false)
         }
       } catch (error) {
-        // Clear invalid stored data
         clearStoredData()
         setIsLoading(false)
       }
@@ -172,15 +161,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const clearStoredData = () => {
-    // Clear user data (access token is now in HTTP-only cookies, handled by server)
     localStorage.removeItem('user')
     
-    // Clear organization and team data
     localStorage.removeItem('currentOrganization')
     localStorage.removeItem('organizations')
     localStorage.removeItem('teams')
     
-    // Clear any other app-specific data
     localStorage.removeItem('pendingOrgSetup')
     localStorage.removeItem('loginError')
     
@@ -206,13 +192,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
-      // Call backend logout to clear refresh token cookie
       await authApi.logout()
     } catch (error) {
       // Continue with frontend cleanup even if backend call fails
     }
     
-    // Clear frontend state and localStorage
     setUser(null)
     setCurrentOrganization(null)
     setOrganizations([])
@@ -221,19 +205,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const value: AuthContextType = {
-    // Auth state
     user,
     isLoading,
     isAuthenticated,
     
-    // Organization state
     currentOrganization,
     organizations,
     
-    // Teams state
     teams,
     
-    // Actions
     setUser,
     setCurrentOrganization: updateCurrentOrganization,
     setOrganizations: updateOrganizations,

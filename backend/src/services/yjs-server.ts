@@ -5,7 +5,6 @@ import jwt from 'jsonwebtoken'
 import { getDocumentPermissions } from '../utils/permissions'
 import { isAllowedOrigin } from '../utils/origins'
 
-// y-websocket utils for Y.js document sync
 // @ts-ignore - no type declarations for this subpath
 import { setupWSConnection } from 'y-websocket/bin/utils'
 
@@ -41,7 +40,6 @@ export function setupYjsServer(server: HttpServer) {
     }
 
     try {
-      // Auth: read JWT from cookie or query param
       const token = parseCookieToken(request.headers.cookie) || url.searchParams.get('token')
       if (!token) {
         socket.destroy()
@@ -51,7 +49,6 @@ export function setupYjsServer(server: HttpServer) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
       const userId = decoded.userId
 
-      // Check document permissions
       const permissions = await getDocumentPermissions(documentId, userId)
       if (!permissions.canView) {
         socket.destroy()

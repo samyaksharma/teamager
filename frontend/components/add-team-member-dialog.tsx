@@ -49,21 +49,18 @@ export function AddTeamMemberDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [loadingMembers, setLoadingMembers] = useState(false)
 
-  // Load current team members when dialog opens
   useEffect(() => {
     if (open && teamId) {
       loadTeamMembers()
     }
   }, [open, teamId])
 
-  // Search users when query changes
   useEffect(() => {
     const searchUsers = async () => {
       if (searchQuery.length >= 2) {
         setIsSearching(true)
         try {
           const results = await teamApi.searchUsers(searchQuery)
-          // Filter out users who are already team members
           const filteredResults = results.filter(
             (user: User) => !currentMembers.some(member => member.id === user.id)
           )
@@ -105,10 +102,8 @@ export function AddTeamMemberDialog({
 
       toast.success(`${user.name} has been added to ${teamName}`)
       
-      // Refresh team members list
       await loadTeamMembers()
       
-      // Clear search and notify parent
       setSearchQuery('')
       setSearchResults([])
       onMemberAdded?.()
@@ -159,7 +154,7 @@ export function AddTeamMemberDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-4 overflow-hidden">
-          {/* Search Section */}
+          
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="search">Search Users</Label>
@@ -196,7 +191,6 @@ export function AddTeamMemberDialog({
 
           <Separator />
 
-          {/* Search Results */}
           {searchQuery.length >= 2 && (
             <div className="space-y-2">
               <Label className="text-sm font-medium">Search Results</Label>
@@ -254,7 +248,6 @@ export function AddTeamMemberDialog({
 
           <Separator />
 
-          {/* Current Team Members */}
           <div className="space-y-2 flex-1 overflow-hidden">
             <Label className="text-sm font-medium flex items-center gap-2">
               <UserCheck className="h-4 w-4" />

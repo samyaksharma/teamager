@@ -18,7 +18,6 @@ const feedUrl = (req: express.Request, token: string) => {
   return `${req.protocol}://${forwardedHost || req.get('host')}/api/calendar/feed/${token}.ics`
 }
 
-// ---- iCalendar helpers (RFC 5545) ----
 const escapeText = (text: string) =>
   text.replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
 
@@ -44,7 +43,6 @@ function fold(line: string) {
 const icsDate = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, '')
 const icsStamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
 
-// Get (or create) the signed-in user's subscription URL
 router.get('/feed', verifyToken, async (req, res) => {
   try {
     const userId = req.user!.userId

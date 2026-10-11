@@ -58,7 +58,6 @@ router.get('/', async (req, res) => {
       .map(t => t.teamId)
     const like = query ? `%${escapeLike(query)}%` : null
 
-    // ---- Documents ----
     const searchDocuments = async () => {
       const conditions: (SQL | undefined)[] = [isNull(documents.deletedAt), viewableDocumentsCondition(userId, myTeams)]
       if (like) conditions.push(or(ilike(documents.title, like), ilike(documents.content, like)))
@@ -84,7 +83,6 @@ router.get('/', async (req, res) => {
       return rows.map(({ content, ...doc }) => ({ ...doc, snippet: snippet(content, query) }))
     }
 
-    // ---- Tasks ----
     const searchTasks = async () => {
       const teamTaskIds = myTeams.length > 0
         ? (await db.select({ taskId: taskTeams.taskId }).from(taskTeams).where(inArray(taskTeams.teamId, myTeams))).map(t => t.taskId)

@@ -43,7 +43,6 @@ interface Invitation {
   token?: string
 }
 
-
 export default function MembersPage() {
   const { user, teams, currentOrganization } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
@@ -73,13 +72,12 @@ export default function MembersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teams, currentOrganization])
 
-  // Auto-refresh data every 15 seconds
   useEffect(() => {
-    if (teams.length === 0) return // Don't start interval if no teams
+    if (teams.length === 0) return
 
     const interval = setInterval(() => {
-      fetchData(false) // Don't show loading spinner for auto-refresh
-    }, 15000) // 15 seconds
+      fetchData(false)
+    }, 15000)
 
     return () => clearInterval(interval)
     // fetchData reads currentOrganization, so refetch (and rebuild the interval) when it arrives
@@ -90,7 +88,6 @@ export default function MembersPage() {
     try {
       if (showLoading) setLoading(true)
       
-      // Fetch organization members instead of team members to avoid duplicates
       if (currentOrganization) {
         try {
           const orgMembers = await organizationsApi.getOrganization(currentOrganization.id)
@@ -128,7 +125,6 @@ export default function MembersPage() {
         setMembers([])
       }
 
-      // Fetch sent invitations
       try {
         const sent = await invitationsApi.getSentInvitations()
         const formattedSent = sent.map((inv: any) => ({
@@ -150,7 +146,6 @@ export default function MembersPage() {
         setSentInvitations([])
       }
 
-      // Fetch received invitations
       try {
         const received = await invitationsApi.getMyInvitations()
         const formattedReceived = received.map((inv: any) => ({
@@ -179,16 +174,14 @@ export default function MembersPage() {
     }
   }
 
-
   const handleSendOrgInvitation = async () => {
     if (!newOrgInvitation.email || !currentOrganization) return
 
     try {
-      // Send organization-level invitation
       await invitationsApi.createInvitation({
         email: newOrgInvitation.email,
         organizationId: currentOrganization.id,
-        role: newOrgInvitation.role, // Use string role directly
+        role: newOrgInvitation.role,
         department: newOrgInvitation.department || undefined,
         jobTitle: newOrgInvitation.jobTitle || undefined
       })
@@ -196,7 +189,7 @@ export default function MembersPage() {
       toast.success(`Organization invitation sent to ${newOrgInvitation.email}`)
       setOrgInviteDialogOpen(false)
       setNewOrgInvitation({ email: "", role: "member", department: "", jobTitle: "" })
-      fetchData() // Refresh the data
+      fetchData()
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Failed to send organization invitation'
       toast.error(errorMessage)
@@ -227,7 +220,6 @@ export default function MembersPage() {
     if (!memberToRemove) return
 
     try {
-      // Use the team API to remove the member
       await teamApi.removeMember((memberToRemove as any).teamId, memberToRemove.id)
       toast.success(`${memberToRemove.name} removed from team`)
       setMembers(members.filter(m => !(m.id === memberToRemove.id && (m as any).teamId === (memberToRemove as any).teamId)))
@@ -256,7 +248,6 @@ export default function MembersPage() {
     try {
       await invitationsApi.resendInvitation(invitation.id)
       toast.success(`Invitation resent to ${invitation.email}`)
-      // Update the sent date
       setSentInvitations(sentInvitations.map(inv => 
         inv.id === invitation.id 
           ? { ...inv, createdAt: new Date().toISOString(), status: "pending" as const }
@@ -311,7 +302,7 @@ export default function MembersPage() {
         return <Shield className="h-4 w-4 text-blue-500" />
       case 'viewer':
         return <Eye className="h-4 w-4 text-gray-400" />
-      default: // member
+      default:
         return <User className="h-4 w-4 text-gray-500" />
     }
   }

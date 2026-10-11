@@ -14,7 +14,6 @@ interface LinkTaskDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-// Link a channel message to an existing task
 export function LinkTaskDialog({ messageId, open, onOpenChange }: LinkTaskDialogProps) {
   const { activeChannel } = useMessages()
   const [tasks, setTasks] = useState<{ id: string; title: string }[]>([])

@@ -130,7 +130,7 @@ export function GlobalSearch({ hotkey = false, triggerClassName }: GlobalSearchP
   const toggleType = (type: SearchType, pressed: boolean) => {
     setTypes((prev) => {
       const next = pressed ? [...prev, type] : prev.filter((t) => t !== type)
-      return next.length === 0 ? prev : next // always keep at least one type
+      return next.length === 0 ? prev : next
     })
   }
 
@@ -138,7 +138,6 @@ export function GlobalSearch({ hotkey = false, triggerClassName }: GlobalSearchP
     handleOpenChange(false)
     action()
   }
-
 
   const commands = useMemo(
     () => [

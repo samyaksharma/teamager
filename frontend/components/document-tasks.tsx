@@ -17,7 +17,6 @@ interface DocumentTasksProps {
   canLink: boolean
 }
 
-// Tasks that point at this document, and a picker to link another task to it
 export function DocumentTasks({ documentId, canLink }: DocumentTasksProps) {
   const [open, setOpen] = useState(false)
   const [linked, setLinked] = useState<{ refId: string; id: string; title: string; status: number }[]>([])
