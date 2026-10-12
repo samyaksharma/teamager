@@ -35,6 +35,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { NotificationBell } from "@/components/notification-bell"
 import { GlobalSearch } from "@/components/global-search"
+import { WorkspaceSetup } from "@/components/workspace-setup"
 import { TeamagerLogo } from "@/components/teamager-logo"
 import { MessagesProvider } from "./messages/messagesContext"
 import { useAuth } from "@/lib/authContext"
@@ -52,7 +53,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { currentOrganization, logout } = useAuth()
+  const { currentOrganization, logout, user, workspaceStatus } = useAuth()
   const pathname = usePathname()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
@@ -64,6 +65,19 @@ export default function DashboardLayout({
   }
 
   const organizationName = currentOrganization?.name || "Teamager"
+
+  // Everything except settings needs a workspace. Don't render the pages as empty shells for someone without one.
+  const needsWorkspace = !!user && !pathname.startsWith("/dashboard/settings")
+  const pageContent =
+    needsWorkspace && workspaceStatus === "loading" ? (
+      <div className="flex h-64 items-center justify-center" role="status" aria-label="Loading your workspace">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+      </div>
+    ) : needsWorkspace && workspaceStatus === "empty" ? (
+      <WorkspaceSetup />
+    ) : (
+      children
+    )
 
   const isActive = (path: string) => {
     return pathname === path || pathname.startsWith(`${path}/`)
@@ -316,7 +330,7 @@ export default function DashboardLayout({
         )}
 
         <main className="flex-1">
-          {children}
+          {pageContent}
         </main>
       </div>
     </MessagesProvider>

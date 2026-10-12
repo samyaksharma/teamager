@@ -110,21 +110,16 @@ function DashboardSkeleton() {
 }
 
 export default function DashboardPage() {
-  const [hasTeam, setHasTeam] = useState<boolean>(false)
   const [tasks, setTasks] = useState([])
   const [channels, setChannels] = useState([])
   const [documents, setDocuments] = useState([])
-  const { user, isLoading, organizations, teams } = useAuth()
-  const [dataLoaded, setDataLoaded] = useState(false)
+  const { user, isLoading, organizations, teams, workspaceStatus } = useAuth()
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false)
   const [selectedTeamForMember, setSelectedTeamForMember] = useState("")
 
-  useEffect(() => {
-    setHasTeam(organizations.length > 0 || teams.length > 0)
-    if (organizations.length > 0 || teams.length > 0) {
-      setDataLoaded(true)
-    }
-  }, [organizations, teams])
+  // `workspaceStatus` says when organizations and teams have actually been fetched; an empty list alone doesn't
+  const dataLoaded = workspaceStatus !== "loading"
+  const hasTeam = workspaceStatus !== "empty"
 
   useEffect(() => {
     const fetchDashboardData = async () => {

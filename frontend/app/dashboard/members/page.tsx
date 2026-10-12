@@ -43,6 +43,10 @@ interface Invitation {
   token?: string
 }
 
+// Invitations carry an organization role (0 member, 1 admin, 2 owner), not a team role
+const invitationRoleName = (role: unknown) =>
+  typeof role === "number" ? (role >= 1 ? "admin" : "member") : String(role ?? "member")
+
 export default function MembersPage() {
   const { user, teams, currentOrganization } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
@@ -130,7 +134,7 @@ export default function MembersPage() {
         const formattedSent = sent.map((inv: any) => ({
           id: inv.id,
           email: inv.email,
-          role: inv.role,
+          role: invitationRoleName(inv.role),
           organizationId: inv.organizationId,
           organizationName: inv.organizationName,
           department: inv.department,
@@ -151,7 +155,7 @@ export default function MembersPage() {
         const formattedReceived = received.map((inv: any) => ({
           id: inv.id,
           email: inv.email,
-          role: inv.role,
+          role: invitationRoleName(inv.role),
           organizationId: inv.organizationId,
           organizationName: inv.organizationName,
           department: inv.department,

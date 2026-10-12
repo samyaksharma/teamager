@@ -38,10 +38,15 @@ interface Team {
   deletedBy?: string
 }
 
+// loading: organizations/teams not fetched yet; empty: fetched and the user belongs to none;
+// ready: has a workspace; error: a request failed (don't claim the user has no workspace)
+export type WorkspaceStatus = 'loading' | 'empty' | 'ready' | 'error'
+
 interface AuthContextType {
   user: User | null
   isLoading: boolean
   isAuthenticated: boolean
+  workspaceStatus: WorkspaceStatus
   
   currentOrganization: Organization | null
   organizations: Organization[]
@@ -70,8 +75,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null)
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [teams, setTeams] = useState<Team[]>([])
+  const [orgsFetch, setOrgsFetch] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [teamsFetch, setTeamsFetch] = useState<'loading' | 'ok' | 'error'>('loading')
 
   const isAuthenticated = !!user
+
+  const workspaceStatus: WorkspaceStatus =
+    orgsFetch === 'error' || teamsFetch === 'error' ? 'error'
+      : orgsFetch === 'loading' || teamsFetch === 'loading' ? 'loading'
+      : organizations.length === 0 && teams.length === 0 ? 'empty'
+      : 'ready'
 
   const refreshUserData = async () => {
     try {
@@ -91,7 +104,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!currentOrganization && orgsData && orgsData.length > 0) {
         setCurrentOrganization(orgsData[0])
       }
+      setOrgsFetch('ok')
     } catch (error) {
+      setOrgsFetch('error')
     }
   }
 
@@ -99,7 +114,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const teamsData = await teamApi.getTeams()
       setTeams(teamsData || [])
+      setTeamsFetch('ok')
     } catch (error) {
+      setTeamsFetch('error')
     }
   }
 
@@ -201,6 +218,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setCurrentOrganization(null)
     setOrganizations([])
     setTeams([])
+    setOrgsFetch('loading')
+    setTeamsFetch('loading')
     clearStoredData()
   }
 
@@ -208,6 +227,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     isLoading,
     isAuthenticated,
+    workspaceStatus,
     
     currentOrganization,
     organizations,

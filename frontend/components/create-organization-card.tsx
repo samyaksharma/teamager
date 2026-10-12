@@ -9,9 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Building2, Check } from "lucide-react"
 import { organizationsApi } from "@/lib/api"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/authContext"
 
 export function CreateOrganizationCard() {
   const router = useRouter()
+  const { refreshOrganizations, refreshTeams } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [orgName, setOrgName] = useState("")
   const [industry, setIndustry] = useState("")
@@ -38,15 +40,13 @@ export function CreateOrganizationCard() {
         size
       });
 
-      const orgData = response.organization || { name: orgName };
-      
+      // Load the new workspace into the app, otherwise every page keeps showing the empty state. Once it's
+      // loaded the layout replaces the setup screen with the dashboard, so there's nothing to wait for.
+      await Promise.all([refreshOrganizations(), refreshTeams()])
+
       setSuccess(true)
       setLoading(false)
-
-      setTimeout(() => {
-        router.push(`/dashboard`)
-        router.refresh()
-      }, 1500)
+      router.push("/dashboard")
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to create organization")
       setLoading(false)

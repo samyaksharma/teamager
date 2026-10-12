@@ -268,6 +268,14 @@ router.post('/', verifyToken, async (req, res) => {
     const { email, organizationId, role = 'member', department, jobTitle } = req.body
     const userId = req.user!.userId
 
+    // Invitations can grant member or admin; ownership belongs to whoever created the organization
+    const roleByName: Record<string, OrganizationRole> = { member: OrganizationRole.MEMBER, admin: OrganizationRole.ADMIN }
+    const orgRole = typeof role === 'string' ? roleByName[role.toLowerCase()]
+      : role === OrganizationRole.MEMBER || role === OrganizationRole.ADMIN ? role : undefined
+    if (orgRole === undefined) {
+      return res.status(400).json({ message: 'Role must be "member" or "admin"' })
+    }
+
     if (!email || !organizationId) {
       return res.status(400).json({ message: 'Email and organizationId are required' })
     }
@@ -341,7 +349,7 @@ router.post('/', verifyToken, async (req, res) => {
         email,
         invitedBy: userId,
         token,
-        role,
+        role: orgRole,
         department,
         jobTitle,
         expiresAt
@@ -371,7 +379,7 @@ router.post('/', verifyToken, async (req, res) => {
         id: newInvitation[0].id,
         email,
         organizationName: organization[0].name,
-        role,
+        role: orgRole,
         department,
         jobTitle,
         expiresAt

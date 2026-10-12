@@ -7,6 +7,7 @@ import { Briefcase, Mail, Calendar, Check } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { invitationsApi } from "@/lib/api"
+import { useAuth } from "@/lib/authContext"
 
 interface Invitation {
   id: string
@@ -14,18 +15,13 @@ interface Invitation {
   role: number
   createdAt: string
   expiresAt: string
-  team: {
-    id: string
-    name: string
-  }
-  inviter: {
-    id: string
-    name: string
-  }
+  organizationName: string
+  inviterName: string
 }
 
 export function InvitationsCard() {
   const router = useRouter()
+  const { refreshOrganizations, refreshTeams } = useAuth()
   const [invitations, setInvitations] = useState<Invitation[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -51,7 +47,8 @@ export function InvitationsCard() {
     try {
       await invitationsApi.acceptInvitation(token)
       setInvitations(invitations.filter(inv => inv.id !== id))
-      router.refresh()
+      await Promise.all([refreshOrganizations(), refreshTeams()])
+      router.push("/dashboard")
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to accept invitation")
     } finally {
@@ -76,7 +73,7 @@ export function InvitationsCard() {
     <Card>
       <CardHeader>
         <CardTitle>Pending Invitations</CardTitle>
-        <CardDescription>Teams you have been invited to join</CardDescription>
+        <CardDescription>Workspaces you have been invited to join</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -93,11 +90,11 @@ export function InvitationsCard() {
                     <Briefcase className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-medium">{invitation.team.name}</h3>
+                    <h3 className="font-medium">{invitation.organizationName}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <Mail className="h-3.5 w-3.5" />
-                        <span>Invited by {invitation.inviter.name}</span>
+                        <span>Invited by {invitation.inviterName}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Calendar className="h-3.5 w-3.5" />
