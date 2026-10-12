@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import axios from 'axios'
+import config from '@/lib/config'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { CheckCircle, XCircle, MailCheck } from 'lucide-react'
@@ -36,8 +37,7 @@ function VerifyEmailInner() {
 
     const verifyEmail = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-        const response = await axios.get(`${apiUrl}/api/verification/verify-email?token=${token}`)
+        const response = await axios.get(`${config.apiUrl}/api/verification/verify-email?token=${token}`)
         
         setVerificationStatus('success')
         setMessage('Your email has been successfully verified! You can now login to your account.')

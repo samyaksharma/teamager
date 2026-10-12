@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Eye, EyeOff } from "lucide-react"
 import axios from "axios"
+import config from "@/lib/config"
 
 interface UserData {
   name: string
@@ -55,8 +56,7 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
     const timeoutId = setTimeout(async () => {
       setUsernameChecking(true)
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-        const response = await axios.get(`${API_URL}/api/auth/check-username?username=${formData.username}`)
+        const response = await axios.get(`${config.apiUrl}/api/auth/check-username?username=${formData.username}`)
         setUsernameAvailable(!response.data.exists)
         
         if (!response.data.exists && errors.username) {

@@ -1,5 +1,6 @@
 'use client'
 
+import config from '@/lib/config'
 import { DocumentHistory } from "@/components/document-history"
 import { DocumentComments } from "@/components/document-comments"
 import { DocumentTasks } from "@/components/document-tasks"
@@ -68,8 +69,7 @@ export default function CollaborativeEditorInner(props: CollaborativeEditorProps
 
   useEffect(() => {
     const ydoc = new Y.Doc()
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-    const wsUrl = apiUrl.replace(/^http/, 'ws') + '/yjs'
+    const wsUrl = config.apiUrl.replace(/^http/, 'ws') + '/yjs'
     const provider = new WebsocketProvider(wsUrl, documentId, ydoc, {
       connect: true,
       disableBc: true,

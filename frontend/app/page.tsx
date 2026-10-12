@@ -60,9 +60,9 @@ export default function Home() {
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </Link>
-                  <Link href="/demo">
+                  <Link href="/login">
                     <Button size="lg" variant="outline">
-                      View Demo
+                      Sign In
                     </Button>
                   </Link>
                 </div>
