@@ -8,12 +8,25 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production' && !p
   )
 }
 
+// A value pasted without its scheme ("api.example.com") would be treated as a path on the current site, so add one.
+// The trailing slash is dropped because request paths already start with one.
+function normalizeUrl(raw: string | undefined, fallback: string): string {
+  const value = raw?.trim()
+  if (!value) return fallback
+  const withScheme = /^https?:\/\//i.test(value)
+    ? value
+    : `${/^(localhost|127\.|0\.0\.0\.0)/i.test(value) ? 'http' : 'https'}://${value}`
+  return withScheme.replace(/\/+$/, '')
+}
+
+const apiUrl = normalizeUrl(process.env.NEXT_PUBLIC_API_URL, 'http://localhost:3001')
+
 export const config = {
   // Main API server (also serves Y.js WebSocket on /yjs/*)
-  apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  apiUrl,
 
   // Document service (same as API server — kept for backward compatibility with api.ts)
-  documentServiceUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+  documentServiceUrl: apiUrl,
 
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production',

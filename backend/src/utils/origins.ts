@@ -7,6 +7,8 @@ const configured = [
   ...(process.env.ALLOWED_ORIGINS ?? '').split(',')
 ]
   .map(o => o?.trim().replace(/\/+$/, ''))
+  // A value pasted without its scheme can never equal a browser's Origin header
+  .map(o => (o && !/^https?:\/\//i.test(o) ? `${/^(localhost|127\.)/i.test(o) ? 'http' : 'https'}://${o}` : o))
   .filter((o): o is string => Boolean(o))
 
 export const allowedOrigins = [
