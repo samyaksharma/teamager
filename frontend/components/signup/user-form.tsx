@@ -37,44 +37,42 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
     }
   }, [formData.email, formData.username])
 
+  // Depends on the username only: setting or clearing an error must not reset this state or fire another request
   useEffect(() => {
     setUsernameAvailable(null)
     setUsernameChecking(false)
-    
-    if (errors.username) {
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors.username
-        return newErrors
-      })
-    }
-    
+    setErrors(prev => {
+      if (!prev.username) return prev
+      const next = { ...prev }
+      delete next.username
+      return next
+    })
+
     if (!formData.username || formData.username.length < 3) {
       return
     }
 
+    let cancelled = false
     const timeoutId = setTimeout(async () => {
       setUsernameChecking(true)
       try {
-        const response = await axios.get(`${config.apiUrl}/api/auth/check-username?username=${formData.username}`)
-        setUsernameAvailable(!response.data.exists)
-        
-        if (!response.data.exists && errors.username) {
-          setErrors(prev => {
-            const newErrors = { ...prev }
-            delete newErrors.username
-            return newErrors
-          })
-        }
-      } catch (error) {
-        setUsernameAvailable(null)
+        const response = await axios.get(`${config.apiUrl}/api/auth/check-username`, {
+          params: { username: formData.username }
+        })
+        if (!cancelled) setUsernameAvailable(!response.data.exists)
+      } catch {
+        // Couldn't check. That doesn't block signup: the server rejects a taken username when the account is created.
+        if (!cancelled) setUsernameAvailable(null)
       } finally {
-        setUsernameChecking(false)
+        if (!cancelled) setUsernameChecking(false)
       }
     }, 500)
 
-    return () => clearTimeout(timeoutId)
-  }, [formData.username, errors.username])
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
+  }, [formData.username])
 
   useEffect(() => {
     if (errors.name && formData.name.trim().length >= 2) {
@@ -125,12 +123,8 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
       newErrors.username = "Username must be less than 30 characters"
     } else if (!/^[a-zA-Z0-9._-]+$/.test(formData.username)) {
       newErrors.username = "Username can only contain letters, numbers, dots, underscores, and hyphens"
-    } else if (usernameChecking) {
-      newErrors.username = "Please wait while we check username availability"
     } else if (usernameAvailable === false) {
       newErrors.username = "This username is already taken. Please choose a different one."
-    } else if (usernameAvailable === null && formData.username.length >= 3) {
-      newErrors.username = "Unable to verify username availability. Please try again."
     }
 
     if (!formData.email.trim()) {
@@ -242,6 +236,12 @@ export function UserForm({ initialData, onSubmit, onBack }: UserFormProps) {
           <p className="text-xs text-muted-foreground">Password must be at least 8 characters long</p>
         </div>
       </div>
+
+      {Object.keys(errors).length > 0 && (
+        <p role="alert" className="text-sm text-destructive">
+          Please fix the highlighted fields above to continue.
+        </p>
+      )}
 
       <div className="flex gap-3">
         {onBack && (
