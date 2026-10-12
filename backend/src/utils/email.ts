@@ -13,7 +13,7 @@ const createTransporter = () => {
 }
 
 export const sendVerificationEmail = async (email: string, token: string) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '')
   const verificationUrl = `${frontendUrl}/verify-email?token=${token}`
   
   if (process.env.NODE_ENV !== 'production') {
@@ -69,7 +69,7 @@ export const sendEmail = async (to: string, subject: string, text: string) => {
 }
 
 export const sendInvitationEmail = async (email: string, teamName: string, inviterName: string, token: string) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000'
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '')
   const invitationUrl = `${frontendUrl}/invite/${token}`
   
   if (process.env.NODE_ENV !== 'production') {
