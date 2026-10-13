@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { formatDistanceToNow } from "date-fns"
-import { Calendar, CheckSquare, FilePlus, FileText, Hash, Home, LogOut, MessageSquare, Moon, PlusSquare, Search, Settings, Users } from "lucide-react"
+import { Building2, Calendar, CheckSquare, FilePlus, FileText, Hash, Home, LogOut, MessageSquare, Moon, PlusSquare, Search, Settings, Users } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
@@ -52,7 +52,7 @@ interface GlobalSearchProps {
 
 export function GlobalSearch({ hotkey = false, triggerClassName }: GlobalSearchProps) {
   const router = useRouter()
-  const { teams, logout } = useAuth()
+  const { teams, logout, organizations, currentOrganization, setCurrentOrganization } = useAuth()
   const { resolvedTheme, setTheme } = useTheme()
   const { setActiveChannel, setActiveDirectContact } = useMessages()
 
@@ -161,9 +161,18 @@ export function GlobalSearch({ hotkey = false, triggerClassName }: GlobalSearchP
         keywords: "theme appearance dark light", icon: Moon,
         run: () => setTheme(resolvedTheme === "dark" ? "light" : "dark"),
       },
+      ...organizations
+        .filter((org) => org.id !== currentOrganization?.id)
+        .map((org) => ({
+          id: `org-${org.id}`,
+          label: `Switch to ${org.name}`,
+          keywords: "organization workspace switch change",
+          icon: Building2,
+          run: () => setCurrentOrganization(org),
+        })),
       { id: "logout", label: "Log out", keywords: "sign out", icon: LogOut, run: () => { logout() } },
     ],
-    [router, resolvedTheme, setTheme, logout]
+    [router, resolvedTheme, setTheme, logout, organizations, currentOrganization, setCurrentOrganization]
   )
 
   // Commands match on their label/keywords; with an empty box only a few are shown

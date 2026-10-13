@@ -22,6 +22,7 @@ import {
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/lib/authContext"
+import { scopeDocumentsToTeams, scopeTasksToOrganization } from "@/lib/workspace-scope"
 import { tasksApi, channelsApi, documentsApi, teamApi } from "@/lib/api"
 import { toast } from "sonner"
 
@@ -113,7 +114,7 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState([])
   const [channels, setChannels] = useState([])
   const [documents, setDocuments] = useState([])
-  const { user, isLoading, organizations, teams, workspaceStatus } = useAuth()
+  const { user, isLoading, organizations, teams, workspaceStatus, currentOrganization } = useAuth()
   const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false)
   const [selectedTeamForMember, setSelectedTeamForMember] = useState("")
 
@@ -131,8 +132,8 @@ export default function DashboardPage() {
           documentsApi.getAllDocuments()
         ])
 
-        setTasks(Array.isArray(tasksResponse) ? tasksResponse : [])
-        setDocuments(Array.isArray(documentsResponse) ? documentsResponse : [])
+        setTasks(Array.isArray(tasksResponse) ? scopeTasksToOrganization(tasksResponse, currentOrganization?.id) : [])
+        setDocuments(Array.isArray(documentsResponse) ? scopeDocumentsToTeams(documentsResponse, teams.map(t => t.id)) : [])
 
         const allChannels = []
         for (const team of teams) {
@@ -148,7 +149,7 @@ export default function DashboardPage() {
     }
 
     fetchDashboardData()
-  }, [teams])
+  }, [teams, currentOrganization?.id])
 
   const handleMemberAdded = () => {
   }

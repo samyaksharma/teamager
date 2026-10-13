@@ -1,7 +1,9 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { tasksApi } from '@/lib/api'
+import { useAuth } from '@/lib/authContext'
+import { scopeTasksToOrganization } from '@/lib/workspace-scope'
 
 interface Task {
   id: string
@@ -70,7 +72,13 @@ const TasksContext = createContext<TasksContextType>({
 export const useTasks = () => useContext(TasksContext)
 
 export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
-  const [tasks, setTasks] = useState<Task[]>([])
+  // The API returns tasks from all of the user's organizations; the app shows the selected one
+  const { currentOrganization } = useAuth()
+  const [allTasks, setTasks] = useState<Task[]>([])
+  const tasks = useMemo(
+    () => scopeTasksToOrganization(allTasks, currentOrganization?.id),
+    [allTasks, currentOrganization?.id]
+  )
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)

@@ -212,10 +212,12 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
         
         setChannels(allChannels)
 
-        if (allChannels.length > 0 && !activeChannel) {
-          const defaultChannel = allChannels.find(c => c.isDefault) || allChannels[0]
-          setActiveChannelState(defaultChannel)
-        }
+        // Keep the open channel only if it's still among the visible ones (switching organization changes them)
+        setActiveChannelState(previous =>
+          previous && allChannels.some(c => c.id === previous.id)
+            ? previous
+            : allChannels.find(c => c.isDefault) || allChannels[0] || null
+        )
       } catch (err) {
         setError('Failed to load channels')
 
@@ -231,7 +233,15 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
   // Load direct message contacts: everyone who shares a team with the current user, with unread counts
   const activeContactId = activeDirectContact?.id
   useEffect(() => {
-    if (!authUser || teams.length === 0) return
+    if (!authUser) return
+
+    // No teams in the selected organization: nobody to message, and a conversation from another one is closed
+    if (teams.length === 0) {
+      setDirectContacts([])
+      setActiveDirectContactState(null)
+      setIsDirectMessageActive(false)
+      return
+    }
 
     const fetchContacts = async () => {
       try {
@@ -256,7 +266,13 @@ export const MessagesProvider = ({ children }: { children: React.ReactNode }) =>
             unreadCount: member.id === activeContactId ? 0 : unreadBySender.get(member.id) ?? 0
           })
         }
-        setDirectContacts([...byId.values()].sort((a, b) => a.name.localeCompare(b.name)))
+        const contacts = [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+        setDirectContacts(contacts)
+
+        if (activeContactId && !contacts.some(c => c.id === activeContactId)) {
+          setActiveDirectContactState(null)
+          setIsDirectMessageActive(false)
+        }
       } catch (err) {
       }
     }

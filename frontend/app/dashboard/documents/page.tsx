@@ -13,6 +13,8 @@ import { FileText, PlusCircle, Clock, Calendar, Search, Users, MoreHorizontal, T
 import { teamAPI, documentsApi as documentAPI } from '@/lib/api';
 import DocumentPermissionsDialog from '@/components/document-permissions-dialog';
 import { useOpenNew } from '@/lib/open-new';
+import { useAuth } from '@/lib/authContext';
+import { scopeDocumentsToTeams } from '@/lib/workspace-scope';
 import { BLANK_TEMPLATE_ID, DOCUMENT_TEMPLATES, getTemplate } from '@/lib/document-templates';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -44,7 +46,8 @@ interface Document {
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
+  // Teams of the selected organization (from the auth context), so the list and the filters follow the switcher
+  const { teams, currentOrganization } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,12 +62,13 @@ export default function DocumentsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    fetchTeams();
-  }, []);
+    setSelectedTeam('all');
+  }, [currentOrganization?.id]);
 
   useEffect(() => {
     fetchDocuments();
-  }, [selectedTeam]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTeam, teams]);
 
   const fetchDocuments = async () => {
     try {
@@ -80,21 +84,13 @@ export default function DocumentsPage() {
 
       const docs = response?.data || response || [];
 
-      setDocuments(Array.isArray(docs) ? docs : []);
+      setDocuments(Array.isArray(docs) ? scopeDocumentsToTeams(docs, teams.map(t => t.id)) : []);
       setError(null);
     } catch (err) {
       setError('Failed to load documents. Please try again.');
       setDocuments([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchTeams = async () => {
-    try {
-      const response = await teamAPI.getTeams();
-      setTeams(response.data || response || []);
-    } catch (err) {
     }
   };
 

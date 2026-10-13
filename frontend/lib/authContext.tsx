@@ -1,6 +1,6 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react'
 import { usersApi, organizationsApi, teamApi } from './api'
 import { authApi } from './authApi'
 
@@ -51,14 +51,17 @@ interface AuthContextType {
   currentOrganization: Organization | null
   organizations: Organization[]
   
+  // Teams of the selected organization
   teams: Team[]
+  // Every team the user belongs to, across organizations
+  allTeams: Team[]
   
   setUser: (user: User | null) => void
   setCurrentOrganization: (org: Organization | null) => void
   setOrganizations: (orgs: Organization[]) => void
   setTeams: (teams: Team[]) => void
   refreshUserData: () => Promise<void>
-  refreshOrganizations: () => Promise<void>
+  refreshOrganizations: (selectId?: string) => Promise<void>
   refreshTeams: () => Promise<void>
   logout: () => Promise<void>
 }
@@ -69,21 +72,49 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
+const ORGANIZATION_KEY = 'currentOrganizationId'
+
+const readStoredOrganizationId = () => {
+  try {
+    return localStorage.getItem(ORGANIZATION_KEY)
+  } catch {
+    return null
+  }
+}
+
+const storeOrganizationId = (id: string | null) => {
+  try {
+    if (id) localStorage.setItem(ORGANIZATION_KEY, id)
+    else localStorage.removeItem(ORGANIZATION_KEY)
+  } catch {
+    // storage can be unavailable (private mode); the selection then lasts for the session only
+  }
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null)
   const [organizations, setOrganizations] = useState<Organization[]>([])
-  const [teams, setTeams] = useState<Team[]>([])
+  const [allTeams, setAllTeams] = useState<Team[]>([])
   const [orgsFetch, setOrgsFetch] = useState<'loading' | 'ok' | 'error'>('loading')
   const [teamsFetch, setTeamsFetch] = useState<'loading' | 'ok' | 'error'>('loading')
 
   const isAuthenticated = !!user
 
+  // The app shows one organization at a time: its teams (teams without an organization are always shown).
+  // While organizations are still loading nothing is selected yet, so show none rather than every organization's.
+  const teams = useMemo(() => {
+    if (currentOrganization) {
+      return allTeams.filter(t => !t.organizationId || t.organizationId === currentOrganization.id)
+    }
+    return orgsFetch === 'loading' ? [] : allTeams
+  }, [allTeams, currentOrganization, orgsFetch])
+
   const workspaceStatus: WorkspaceStatus =
     orgsFetch === 'error' || teamsFetch === 'error' ? 'error'
       : orgsFetch === 'loading' || teamsFetch === 'loading' ? 'loading'
-      : organizations.length === 0 && teams.length === 0 ? 'empty'
+      : organizations.length === 0 && allTeams.length === 0 ? 'empty'
       : 'ready'
 
   const refreshUserData = async () => {
@@ -96,14 +127,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  const refreshOrganizations = async () => {
+  // Keeps the selected organization (re-read from the fresh list so renames show up), falls back to the one
+  // remembered from last time, then to the first. `selectId` switches to a specific one (e.g. a new organization).
+  const refreshOrganizations = async (selectId?: string) => {
     try {
-      const orgsData = await organizationsApi.getAllOrganizations()
-      setOrganizations(orgsData || [])
-      
-      if (!currentOrganization && orgsData && orgsData.length > 0) {
-        setCurrentOrganization(orgsData[0])
-      }
+      const orgsData: Organization[] = (await organizationsApi.getAllOrganizations()) || []
+      setOrganizations(orgsData)
+
+      setCurrentOrganization(previous => {
+        const wanted = selectId ?? previous?.id ?? readStoredOrganizationId()
+        const next = orgsData.find(o => o.id === wanted) ?? orgsData[0] ?? null
+        storeOrganizationId(next?.id ?? null)
+        return next
+      })
       setOrgsFetch('ok')
     } catch (error) {
       setOrgsFetch('error')
@@ -113,7 +149,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshTeams = async () => {
     try {
       const teamsData = await teamApi.getTeams()
-      setTeams(teamsData || [])
+      setAllTeams(teamsData || [])
       setTeamsFetch('ok')
     } catch (error) {
       setTeamsFetch('error')
@@ -152,7 +188,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             clearStoredData()
             setUser(null)
             setOrganizations([])
-            setTeams([])
+            setAllTeams([])
           }
           setIsLoading(false)
         }
@@ -166,6 +202,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [])
 
   const updateCurrentOrganization = (org: Organization | null) => {
+    storeOrganizationId(org?.id ?? null)
     setCurrentOrganization(org)
   }
 
@@ -174,13 +211,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const updateTeams = (teamsData: Team[]) => {
-    setTeams(teamsData)
+    setAllTeams(teamsData)
   }
 
   const clearStoredData = () => {
     localStorage.removeItem('user')
     
     localStorage.removeItem('currentOrganization')
+    localStorage.removeItem(ORGANIZATION_KEY)
     localStorage.removeItem('organizations')
     localStorage.removeItem('teams')
     
@@ -217,7 +255,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null)
     setCurrentOrganization(null)
     setOrganizations([])
-    setTeams([])
+    setAllTeams([])
     setOrgsFetch('loading')
     setTeamsFetch('loading')
     clearStoredData()
@@ -233,6 +271,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     organizations,
     
     teams,
+    allTeams,
     
     setUser,
     setCurrentOrganization: updateCurrentOrganization,

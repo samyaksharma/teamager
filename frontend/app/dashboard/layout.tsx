@@ -36,6 +36,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { NotificationBell } from "@/components/notification-bell"
 import { GlobalSearch } from "@/components/global-search"
 import { WorkspaceSetup } from "@/components/workspace-setup"
+import { OrganizationSwitcher } from "@/components/organization-switcher"
 import { TeamagerLogo } from "@/components/teamager-logo"
 import { MessagesProvider } from "./messages/messagesContext"
 import { useAuth } from "@/lib/authContext"
@@ -135,6 +136,7 @@ export default function DashboardLayout({
               <Link href="/dashboard" className="flex items-center gap-2 font-bold">
                 <TeamagerLogo className="h-6 w-6 flex-shrink-0" />
               </Link>
+              <OrganizationSwitcher />
             </div>
 
             <nav className="hidden md:flex flex-1 items-center justify-center space-x-1">

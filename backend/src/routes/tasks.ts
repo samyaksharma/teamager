@@ -299,6 +299,16 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // A task in a team belongs to that team's organization, even when the client didn't say so
+    let taskOrganizationId = organizationId
+    if (!taskOrganizationId && allTeamIds.length > 0) {
+      const firstTeam = await db.select({ organizationId: teams.organizationId })
+        .from(teams)
+        .where(eq(teams.id, allTeamIds[0]))
+        .limit(1)
+      taskOrganizationId = firstTeam[0]?.organizationId ?? undefined
+    }
+
     const newTask = await db.insert(tasks)
       .values({
         title,
@@ -307,7 +317,7 @@ router.post('/', async (req, res) => {
         status,
         dueDate: dueDate ? new Date(dueDate) : null,
         assignedTo,
-        organizationId,
+        organizationId: taskOrganizationId,
         createdBy: userId
       })
       .returning()

@@ -11,7 +11,7 @@ import { organizationsApi } from "@/lib/api"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/authContext"
 
-export function CreateOrganizationCard() {
+export function CreateOrganizationCard({ onCreated }: { onCreated?: () => void } = {}) {
   const router = useRouter()
   const { refreshOrganizations, refreshTeams } = useAuth()
   const [showForm, setShowForm] = useState(false)
@@ -42,10 +42,11 @@ export function CreateOrganizationCard() {
 
       // Load the new workspace into the app, otherwise every page keeps showing the empty state. Once it's
       // loaded the layout replaces the setup screen with the dashboard, so there's nothing to wait for.
-      await Promise.all([refreshOrganizations(), refreshTeams()])
+      await Promise.all([refreshOrganizations(response?.id), refreshTeams()])
 
       setSuccess(true)
       setLoading(false)
+      onCreated?.()
       router.push("/dashboard")
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to create organization")
